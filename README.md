@@ -11,6 +11,9 @@ This repo is the **frontend only**. The Python/FastAPI backend lives in a separa
 a small JSON + SSE HTTP API, documented below. If you are an agent picking this up, read this whole
 file first; the "Gotchas" and "How to extend" sections will save you the most time.
 
+**Going live?** See section [11](#11-going-live-running-the-real-version-not-demo-data) here and, for the services, APIs and keys the real
+version needs, section 9 of the backend README.
+
 ---
 
 ## 1. Quick start
@@ -315,7 +318,39 @@ Use **Reset demo data** on Watch to start over.
 
 ---
 
-## 11. Known gaps / ideas
+## 11. Going live: running the real version (not demo data)
+
+The full checklist (data sources, APIs, services, accounts, keys, infrastructure, legal prerequisites) is in the backend repo:
+**[haul16-backend README, section 9](https://github.com/dezmymachine/haul16-backend#9-going-live-running-the-real-version-not-demo-data)**.
+This section lists only what changes **in the frontend** when the backend goes live.
+
+**What the frontend needs from the backend before it can go live** (each is `NEEDS BUILD` on the backend):
+login/session, roles, real notice senders, inbound-response tracking, a liveness checker for removals, a `dry_run` flag in
+`/api/health`, brand onboarding endpoints. The UI today assumes a single brand, no login and a dry-run backend.
+
+| Area | Demo today | For live | Where |
+|---|---|---|---|
+| API base | Relative `/api/...` through the Vite dev proxy (`vite.config.ts`, `HAUL16_API`) | Serve the built frontend and the API from **one origin** behind a reverse proxy (route `/api` to the backend), so no CORS and no base-URL config is needed. If you must split origins, add `VITE_API_BASE`, prefix it in `req()` in `src/api.ts` and in `live.ts`, and set the backend CORS allow-list | `src/api.ts`, `src/live.ts` |
+| SSE | `new EventSource('/api/events')` | The proxy must **disable response buffering** and allow long-lived connections (for example nginx `proxy_buffering off; proxy_read_timeout 1h`). Cookie auth works with `EventSource`; bearer headers do not (use cookies or a short-lived token query param) | `src/live.ts` |
+| Auth | None. "Acting as" is free text in `localStorage` | Login (OIDC/SSO), redirect unauthenticated users, attach credentials (`credentials: 'include'`) in `req()`, handle 401/403 globally, and **remove the free-text approver**: show the signed-in user in the account menu and let the backend take the approver from the session | `src/api.ts`, `src/ui.tsx` (`useApprover`), `components/user-menu.tsx`, `components/notice-actions.tsx` |
+| Roles | Everyone can do everything | Hide or disable Approve/Reject/File for non-approvers, hide Brand editing for non-admins (the backend must enforce too) | `components/notice-actions.tsx`, `routes/brand.tsx` |
+| Demo controls | Watch page has "Run a demo clone" and "Reset demo data" | **Remove or gate behind a build flag / `HAUL16_ENV`.** Reset deletes all data | `routes/index.tsx` (`DemoPanel`) |
+| Dry-run indicator | Static "Dry run" badge in the top bar | Drive it from `GET /api/health` `dry_run`: show **DRY RUN** or a clearly different **LIVE** state, and make "File (dry run)" buttons read "File" when live. Notice status `filed_dry_run` needs a live counterpart (for example `filed`) in `api.ts`, `ui.tsx`, `workflow-stepper.tsx`, Approvals tabs and Report | `components/page.tsx`, `components/notice-actions.tsx`, `src/api.ts` |
+| Assisted filing | n/a | If you ship "assisted mode" (a human files by hand), add a notice view with Copy text, Evidence pack download and a link to the official form, plus a "Mark filed" action | `components/notice-card.tsx`, `components/notice-actions.tsx` |
+| Real clock | Operator buttons "Log first response / Mark removed" (simulated) | When the backend records real events, show their source and hide the manual buttons for automated channels; label simulated rows | `routes/cases.$caseId.tsx` (`Clock`), `components/notice-actions.tsx` |
+| Brand onboarding | Read-only Brand page | Forms for names, domains, numbers, wallets, favicon hashes, allow-list and the authorisation letter upload | `routes/brand.tsx` |
+| Scale | Lists load everything | Server-side pagination, search and filters for Threats, Cases, Notices (the API will need `limit`/`cursor`) | `routes/threats.index.tsx`, `routes/cases.index.tsx`, `routes/approvals.tsx` |
+| Errors and monitoring | Toasts and inline alerts | Add an error boundary, a front-end error tracker (for example Sentry, *(proposed)* `VITE_SENTRY_DSN`) and an offline/API-down banner | `routes/__root.tsx` |
+| Build and hosting | `npm run dev` | `npm run build` (output in `dist/`; confirm the client folder after a build) and serve it as static files from a CDN or the reverse proxy, with an SPA fallback to the shell HTML for deep links such as `/cases/<id>`. No Node server is required in SPA mode | `vite.config.ts` |
+| Security headers | none | Set CSP (note the Google Fonts links in `routes/__root.tsx`; self-host the fonts to tighten CSP), `X-Content-Type-Options`, `frame-ancestors`, HSTS at the proxy | proxy config |
+| Evidence images | `/api/evidence/<name>` | Serve through an authenticated route or short-lived signed URLs; attacker-controlled screenshots must never be served from the app's origin as HTML | `src/api.ts` (`evidenceUrl`) |
+
+**Configuration the frontend would read in a live build** *(all proposed; today only the dev-proxy `HAUL16_API` exists, and it is a
+build-tool variable, not shipped to the browser)*: `VITE_API_BASE` (only if API is on another origin), `VITE_SENTRY_DSN`,
+`VITE_OIDC_*` (only if the login flow runs in the browser). Never put secrets in `VITE_*` variables: they are public in the bundle.
+No API keys belong in the frontend at all; every third-party key (email, Web Risk, WHOIS, blockchain explorers, storage) stays on the backend.
+
+## 12. Known gaps / ideas
 
 - No automated tests (see above). No auth: "Acting as" is a free-text name, not a login.
 - Rate chart is empty until the first few `ct_stats` events arrive (about 2s each).
@@ -323,7 +358,7 @@ Use **Reset demo data** on Watch to start over.
 - Threats/Cases tables have no pagination or search yet.
 - `routeTree.gen.ts` is committed on purpose so `tsc` works on a fresh clone before the first build.
 
-## 12. Related
+## 13. Related
 
 - Backend: https://github.com/dezmymachine/haul16-backend (pipeline, scoring, notices, API, SQLite store)
 - This is a **dry-run demo**. Do not wire real sending of notices without legal review, verified recipient
