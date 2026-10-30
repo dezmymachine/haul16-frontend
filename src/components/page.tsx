@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Eye, FlaskConical, X } from 'lucide-react'
+import { ArrowRight, Database, Eye, FlaskConical, X } from 'lucide-react'
 import { api } from '@/api'
+import { demoEnabled } from '@/demo'
 import { FlowMenu } from '@/components/flow-menu'
 import { UserMenu } from '@/components/user-menu'
 import { Crumbs, type Crumb } from '@/components/page-header'
@@ -49,6 +50,7 @@ function NextStep() {
 
 /** Standard page frame: top bar, the next-step banner, then padded content. */
 export function Page({ crumbs, children }: { crumbs: Crumb[]; children: ReactNode }) {
+  const demo = useQuery({ queryKey: ['demo-mode'], queryFn: demoEnabled, staleTime: Infinity }).data
   return (
     <>
       <header className="no-print sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
@@ -58,6 +60,11 @@ export function Page({ crumbs, children }: { crumbs: Crumb[]; children: ReactNod
         <Badge variant="warn" className="gap-1.5 py-1" title="Nothing is sent to any registrar, host, platform, telco or regulator. A person approves every notice.">
           <FlaskConical /> Dry run<span className="max-lg:hidden"> · nothing is sent</span>
         </Badge>
+        {demo ? (
+          <Badge variant="secondary" className="gap-1.5 py-1" title="No backend is connected, so this view runs on built-in sample data (a fictional brand).">
+            <Database /> <span className="max-md:hidden">Sample data</span>
+          </Badge>
+        ) : null}
         <FlowMenu />
         <UserMenu />
       </header>

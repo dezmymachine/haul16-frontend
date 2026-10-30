@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import type { CtStats } from './api'
+import { demoEnabled } from './demo'
 
 export type LiveEvent =
   | ({ type: 'ct_stats' } & CtStats)
@@ -31,10 +32,32 @@ const CONN_KEY = ['live', 'connected']
 
 let seq = 0
 
+function handleEvent(qc: QueryClient, ev: LiveEvent) {
+  if (ev.type === 'ct_stats') {
+    qc.setQueryData(CT_KEY, ev)
+    if (typeof ev.rate_now === 'number') {
+      qc.setQueryData<number[]>(RATE_KEY, (old = []) => [...old, ev.rate_now!].slice(-60))
+    }
+    return
+  }
+  const item: FeedItem = { ...ev, at: Date.now(), key: `${Date.now()}-${seq++}` }
+  qc.setQueryData<FeedItem[]>(FEED_KEY, (old = []) => [item, ...old].slice(0, 80))
+  // Refresh whatever the event changed.
+  qc.invalidateQueries({ queryKey: ['stats'] })
+  if (ev.type === 'scored' || ev.type === 'filed') qc.invalidateQueries({ queryKey: ['notices'] })
+  if (ev.type === 'scored' || ev.type === 'hit') qc.invalidateQueries({ queryKey: ['threats'] })
+  if (ev.type === 'scored' && ev.case_id) {
+    qc.invalidateQueries({ queryKey: ['cases'] })
+    qc.invalidateQueries({ queryKey: ['case', ev.case_id] })
+  }
+  if (ev.type === 'filed') qc.invalidateQueries({ queryKey: ['case', ev.case_id] })
+}
+
 export function useLiveConnection(qc: QueryClient) {
   useEffect(() => {
     let es: EventSource | null = null
     let retry: ReturnType<typeof setTimeout> | undefined
+    let stopMock: (() => void) | undefined
     let closed = false
 
     const connect = () => {
@@ -45,33 +68,24 @@ export function useLiveConnection(qc: QueryClient) {
         es?.close()
         if (!closed) retry = setTimeout(connect, 3000)
       }
-      es.onmessage = (msg) => {
-        const ev = JSON.parse(msg.data) as LiveEvent
-        if (ev.type === 'ct_stats') {
-          qc.setQueryData(CT_KEY, ev)
-          if (typeof ev.rate_now === 'number') {
-            qc.setQueryData<number[]>(RATE_KEY, (old = []) => [...old, ev.rate_now!].slice(-60))
-          }
-          return
-        }
-        const item: FeedItem = { ...ev, at: Date.now(), key: `${Date.now()}-${seq++}` }
-        qc.setQueryData<FeedItem[]>(FEED_KEY, (old = []) => [item, ...old].slice(0, 80))
-        // Refresh whatever the event changed.
-        qc.invalidateQueries({ queryKey: ['stats'] })
-        if (ev.type === 'scored' || ev.type === 'filed') qc.invalidateQueries({ queryKey: ['notices'] })
-        if (ev.type === 'scored' || ev.type === 'hit') qc.invalidateQueries({ queryKey: ['threats'] })
-        if (ev.type === 'scored' && ev.case_id) {
-          qc.invalidateQueries({ queryKey: ['cases'] })
-          qc.invalidateQueries({ queryKey: ['case', ev.case_id] })
-        }
-        if (ev.type === 'filed') qc.invalidateQueries({ queryKey: ['case', ev.case_id] })
-      }
+      es.onmessage = (msg) => handleEvent(qc, JSON.parse(msg.data) as LiveEvent)
     }
-    connect()
+
+    // No backend (sample data): drive the same cache from the in-browser event stream.
+    void demoEnabled().then(async (demo) => {
+      if (closed) return
+      if (!demo) return connect()
+      const { subscribe } = await import('./mock/server')
+      if (closed) return
+      qc.setQueryData(CONN_KEY, true)
+      stopMock = subscribe((ev) => handleEvent(qc, ev))
+    })
+
     return () => {
       closed = true
       clearTimeout(retry)
       es?.close()
+      stopMock?.()
     }
   }, [qc])
 }

@@ -1,4 +1,7 @@
 // Typed client for the HAUL16 FastAPI backend. Everything is a dry run.
+// When no backend is reachable the client serves built-in sample data (see src/demo.ts and src/mock/).
+import { demoEnabled } from './demo'
+import { demoScreenshot } from './mock/screens'
 
 export type Confidence = 'high' | 'medium' | 'low' | 'unknown'
 
@@ -198,6 +201,10 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  if (await demoEnabled()) {
+    const { handleMock } = await import('./mock/server')
+    return (await handleMock(path, init)) as T
+  }
   const res = await fetch(path, {
     ...init,
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
@@ -247,6 +254,7 @@ export const api = {
 
 export function evidenceUrl(ref: string | null | undefined): string | null {
   if (!ref) return null
+  if (ref.startsWith('demo:')) return demoScreenshot(ref.slice(5))
   const name = ref.split('/').pop()!
   return `/api/evidence/${encodeURIComponent(name)}`
 }

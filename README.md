@@ -297,6 +297,27 @@ except in charts (`MIX` in `routes/index.tsx`, which needs literal colors for SV
 
 ---
 
+### Sample data mode (no backend needed)
+
+When no backend answers, the app serves **built-in sample data** so the whole demo works on a static host such as Vercel. The client
+decides once per page load (`src/demo.ts`): it probes `GET /api/health`; a JSON `{ok: true}` means a real backend, anything else
+(404, the SPA shell HTML, a network error) switches to sample data. Override with `VITE_DEMO_DATA=1` (always sample) or `VITE_DEMO_DATA=0`
+(never). A **Sample data** badge shows in the top bar while it is active.
+
+How it works (`src/mock/`):
+- `data.ts`: the seed (fictional brand "Nkwa Exchange"): a two-site campaign sharing one MoMo number with notices at every stage (filed,
+  approved, drafted, rejected) and clock events, a second case with five drafted notices, a low-risk site and an unreachable one; plus the
+  notice drafting templates (mirrors `channels.yaml`) and builders.
+- `server.ts`: `handleMock(path, init)` implements every route the UI calls (same shapes and 409/422 rules as the backend), a simulated
+  pipeline for "Run a demo clone" / "Report a suspicious link" (hit, capturing, scored, case opened or joined by shared phone/wallet/telegram,
+  notices drafted), a simulated live CT stream, and the report. State is in memory and mirrored to `localStorage` (`haul16.demo.v1`), so a
+  refresh keeps your progress. **Reset demo data** restores the seed.
+- `screens.ts`: generated SVG "captured page" screenshots (`demo:<host>` refs resolve in `evidenceUrl()`).
+- `live.ts` subscribes to the mock event stream instead of `EventSource` when sample data is active.
+
+Keep the mock in step with the backend: a new route or field in `src/api.ts` needs the same in `src/mock/server.ts` and `data.ts`.
+The report ignores the selected month in sample mode because the seed is timestamped relative to "now".
+
 ## 10. Testing and verification
 
 There is no unit-test runner yet. Verification used so far:
