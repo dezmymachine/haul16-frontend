@@ -1,4 +1,4 @@
-import { HeadContent, Link, Outlet, Scripts, createRootRouteWithContext } from '@tanstack/react-router'
+import { HeadContent, Link, Outlet, Scripts, createRootRouteWithContext, useRouterState } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import appCss from '@/styles.css?url'
@@ -32,7 +32,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   notFoundComponent: () => (
     <div className="grid place-items-center gap-3 p-16 text-center">
       <h1 className="text-2xl font-semibold">Page not found</h1>
-      <Button asChild><Link to="/">Back to Watch</Link></Button>
+      <Button asChild><Link to="/watch">Back to Watch</Link></Button>
     </div>
   ),
 })
@@ -54,6 +54,9 @@ function RootDocument({ children }: { children: ReactNode }) {
 function Layout() {
   const { queryClient } = Route.useRouteContext()
   useLiveConnection(queryClient)
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  // The landing page is a standalone, full-screen page with no dashboard chrome.
+  if (pathname === '/') return <Outlet />
   return (
     <TooltipProvider>
       <SidebarProvider>

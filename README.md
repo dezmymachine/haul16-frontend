@@ -71,7 +71,8 @@ The UI is organised around one pipeline. Every page names its step and links to 
 Detect (Watch) -> Triage (Threats) -> Case (Cases) -> Approve (Approvals) -> File (dry run) -> Track clock -> Report
 ```
 
-1. **Watch** `/`: live certificate stream, threat mix, live pipeline feed, demo controls, manual URL submission.
+0. **Home** `/`: a standalone, non-scrolling landing page (no sidebar) with one "Open dashboard" link to `/watch`. The page chrome is skipped for `/` in `routes/__root.tsx`.
+1. **Watch** `/watch`: live certificate stream, threat mix, live pipeline feed, demo controls, manual URL submission.
 2. **Threats** `/threats`: every hostname that matched the brand, with verdict (high / medium / low / unknown).
    Nothing is ever "safe": `unknown` means the page could not be seen yet.
 3. **Cases** `/cases`: a case opens automatically when a capture scores **medium or high**. Sites that share
@@ -111,7 +112,8 @@ src/
   hooks/use-mobile.ts    shadcn mobile breakpoint hook
   routes/                file-based routes (page components live IN the route files)
     __root.tsx           <html> shell, fonts, SidebarProvider layout, Toaster, live SSE connection
-    index.tsx            Watch  (/)
+    index.tsx            Home / landing page (/), full-screen, no scroll
+    watch.tsx            Watch  (/watch)
     threats.index.tsx    Threats list (/threats?confidence=)
     threats.$threatId.tsx  Threat detail
     cases.index.tsx      Cases list

@@ -14,7 +14,7 @@ const NAV = [
   {
     label: 'Monitor',
     items: [
-      { to: '/', title: 'Watch', icon: Radar, exact: true },
+      { to: '/watch', title: 'Watch', icon: Radar },
       { to: '/threats', title: 'Threats', icon: ShieldAlert },
     ],
   },

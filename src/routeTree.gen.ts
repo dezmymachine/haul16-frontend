@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as BrandRouteImport } from './routes/brand'
 import { Route as ReportRouteImport } from './routes/report'
+import { Route as WatchRouteImport } from './routes/watch'
 import { Route as CasesIndexRouteImport } from './routes/cases.index'
 import { Route as CasesCaseIdRouteImport } from './routes/cases.$caseId'
 import { Route as ThreatsIndexRouteImport } from './routes/threats.index'
@@ -36,6 +37,11 @@ const BrandRoute = BrandRouteImport.update({
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WatchRoute = WatchRouteImport.update({
+  id: '/watch',
+  path: '/watch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CasesIndexRoute = CasesIndexRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof ApprovalsRoute
   '/brand': typeof BrandRoute
   '/report': typeof ReportRoute
+  '/watch': typeof WatchRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases/': typeof CasesIndexRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/approvals': typeof ApprovalsRoute
   '/brand': typeof BrandRoute
   '/report': typeof ReportRoute
+  '/watch': typeof WatchRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases': typeof CasesIndexRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/approvals': typeof ApprovalsRoute
   '/brand': typeof BrandRoute
   '/report': typeof ReportRoute
+  '/watch': typeof WatchRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases/': typeof CasesIndexRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/brand'
     | '/report'
+    | '/watch'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases/'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/brand'
     | '/report'
+    | '/watch'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/brand'
     | '/report'
+    | '/watch'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases/'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   ApprovalsRoute: typeof ApprovalsRoute
   BrandRoute: typeof BrandRoute
   ReportRoute: typeof ReportRoute
+  WatchRoute: typeof WatchRoute
   CasesCaseIdRoute: typeof CasesCaseIdRoute
   ThreatsThreatIdRoute: typeof ThreatsThreatIdRoute
   CasesIndexRoute: typeof CasesIndexRoute
@@ -162,6 +175,13 @@ declare module '@tanstack/react-router' {
       path: '/report'
       fullPath: '/report'
       preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/watch': {
+      id: '/watch'
+      path: '/watch'
+      fullPath: '/watch'
+      preLoaderRoute: typeof WatchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cases/': {
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApprovalsRoute: ApprovalsRoute,
   BrandRoute: BrandRoute,
   ReportRoute: ReportRoute,
+  WatchRoute: WatchRoute,
   CasesCaseIdRoute: CasesCaseIdRoute,
   ThreatsThreatIdRoute: ThreatsThreatIdRoute,
   CasesIndexRoute: CasesIndexRoute,
