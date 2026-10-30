@@ -347,6 +347,24 @@ login/session, roles, real notice senders, inbound-response tracking, a liveness
 | Security headers | none | Set CSP (note the Google Fonts links in `routes/__root.tsx`; self-host the fonts to tighten CSP), `X-Content-Type-Options`, `frame-ancestors`, HSTS at the proxy | proxy config |
 | Evidence images | `/api/evidence/<name>` | Serve through an authenticated route or short-lived signed URLs; attacker-controlled screenshots must never be served from the app's origin as HTML | `src/api.ts` (`evidenceUrl`) |
 
+### Deploying to Vercel (static SPA)
+
+`vercel.json` is required. TanStack Start in SPA mode emits `dist/client/_shell.html` (and no `index.html`), so Vercel's default
+Vite preset deploys fine and then serves **404 "This page doesn't exist"**. The config sets `outputDirectory: "dist/client"`, turns off
+framework detection, and rewrites every path to `/_shell.html` so deep links such as `/watch` and `/cases/<id>` work. Static files in
+`assets/` win over the rewrite automatically.
+
+**The backend is not on Vercel.** The landing page works on its own, but the dashboard calls relative `/api/...` and `/demo-sites/...`.
+Deploy the backend (it needs a long-lived process: CT follower, Playwright, SSE; see backend README section 9) and add, **above** the catch-all
+rewrite in `vercel.json`:
+
+```json
+{ "source": "/api/:path*", "destination": "https://YOUR-BACKEND-HOST/api/:path*" }
+```
+
+Vercel proxies are subject to timeouts, so for production prefer putting both behind one reverse proxy (see the table above) or exposing the
+backend with CORS for this origin. Until a backend is wired up the dashboard pages show "failed to fetch"-style alerts.
+
 **Configuration the frontend would read in a live build** *(all proposed; today only the dev-proxy `HAUL16_API` exists, and it is a
 build-tool variable, not shipped to the browser)*: `VITE_API_BASE` (only if API is on another origin), `VITE_SENTRY_DSN`,
 `VITE_OIDC_*` (only if the login flow runs in the browser). Never put secrets in `VITE_*` variables: they are public in the bundle.
