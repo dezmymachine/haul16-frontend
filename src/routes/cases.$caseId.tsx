@@ -1,6 +1,10 @@
+import { useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight } from 'lucide-react'
+import {
+  ArrowRight, Download, Globe, Layers, MessageSquare, Phone, Share2, ShieldCheck, Wallet,
+} from 'lucide-react'
+import { toast } from 'sonner'
 import { api, type CaseDetail, type ClockEvent } from '@/api'
 import {
   Ago, CHANNEL_LABEL, ConfidenceChip, Empty, ErrorNote, Mono, Stat, fmtDuration, fmtTime, useNow,
@@ -18,7 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
-const TABS = ['overview', 'evidence', 'notices', 'clock', 'audit'] as const
+const TABS = ['overview', 'evidence', 'notices', 'clock', 'audit', 'dossier'] as const
 type Tab = (typeof TABS)[number]
 
 export const Route = createFileRoute('/cases/$caseId')({
@@ -32,6 +36,7 @@ function CasePage() {
   const { caseId } = Route.useParams()
   const { tab = 'overview' } = Route.useSearch()
   const navigate = Route.useNavigate()
+  const [downloading, setDownloading] = useState(false)
   const q = useQuery({ queryKey: ['case', caseId], queryFn: () => api.case(caseId), refetchInterval: 10_000 })
   const c = q.data
 
@@ -44,6 +49,24 @@ function CasePage() {
   const filed = c.notices.filter((n) => n.status === 'filed_dry_run').length
   const removed = c.clock.filter((e) => e.event === 'removed').length
 
+  const downloadDossier = async () => {
+    try {
+      setDownloading(true)
+      const dossier = await api.dossier(caseId)
+      const blob = new Blob([JSON.stringify(dossier, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `haul16-dossier-${caseId}.json`
+      a.click()
+      URL.revokeObjectURL(a.href)
+      toast.success('Regulatory Evidence Dossier exported')
+    } catch {
+      toast.error('Failed to export dossier')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <Page crumbs={crumbs}>
       <PageHeader
@@ -55,11 +78,16 @@ function CasePage() {
           </>
         }
         actions={
-          awaiting ? (
-            <Button onClick={() => navigate({ search: { tab: 'notices' } })}>Review {awaiting} notices <ArrowRight /></Button>
-          ) : ready ? (
-            <Button onClick={() => navigate({ search: { tab: 'notices' } })}>File {ready} approved <ArrowRight /></Button>
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={downloadDossier} disabled={downloading}>
+              <Download className="mr-1.5 size-4" /> Export Dossier
+            </Button>
+            {awaiting ? (
+              <Button onClick={() => navigate({ search: { tab: 'notices' } })}>Review {awaiting} notices <ArrowRight /></Button>
+            ) : ready ? (
+              <Button onClick={() => navigate({ search: { tab: 'notices' } })}>File {ready} approved <ArrowRight /></Button>
+            ) : null}
+          </div>
         }
       />
       <WorkflowStepper reached={caseReached(c)} />
@@ -81,6 +109,7 @@ function CasePage() {
           </TabsTrigger>
           <TabsTrigger value="clock">Clock</TabsTrigger>
           <TabsTrigger value="audit">Audit ({c.audit.length})</TabsTrigger>
+          <TabsTrigger value="dossier">Dossier</TabsTrigger>
         </TabsList>
         </div>
         <TabsContent value="overview" className="mt-4"><Campaign c={c} /></TabsContent>
@@ -101,63 +130,287 @@ function CasePage() {
         <TabsContent value="notices" className="mt-4"><Notices c={c} /></TabsContent>
         <TabsContent value="clock" className="mt-4"><Clock c={c} /></TabsContent>
         <TabsContent value="audit" className="mt-4"><Audit c={c} /></TabsContent>
+        <TabsContent value="dossier" className="mt-4"><Dossier caseId={c.id} /></TabsContent>
       </Tabs>
     </Page>
   )
 }
 
 function Campaign({ c }: { c: CaseDetail }) {
+  const [activeNode, setActiveNode] = useState<string | null>(null)
   const shared = c.identifiers.filter((i) => i.n > 1)
+
+  // Map each threat to its identifiers and vice-versa
+  const threatNodes = c.threats
+  const identNodes = c.identifiers
+
+  // Height and vertical spacing for the SVG cluster graph
+  const rowHeight = 76
+  const totalRows = Math.max(threatNodes.length, identNodes.length, 1)
+  const svgHeight = Math.max(220, totalRows * rowHeight + 40)
+  const svgWidth = 840
+
+  const getThreatY = (index: number) => {
+    if (threatNodes.length === 1) return svgHeight / 2
+    return 40 + (index * (svgHeight - 80)) / (threatNodes.length - 1)
+  }
+
+  const getIdentY = (index: number) => {
+    if (identNodes.length === 1) return svgHeight / 2
+    return 40 + (index * (svgHeight - 80)) / (identNodes.length - 1)
+  }
+
+  const kindIcon = (kind: string) => {
+    if (kind === 'phone') return <Phone className="size-3.5 text-amber-500" />
+    if (kind === 'wallet') return <Wallet className="size-3.5 text-purple-500" />
+    if (kind === 'telegram' || kind === 'whatsapp') return <MessageSquare className="size-3.5 text-sky-500" />
+    return <Layers className="size-3.5 text-muted-foreground" />
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Campaign</CardTitle>
-        <CardDescription>
-          Threats are linked only on a shared payment number, wallet or Telegram handle. A shared host, registrar or copied logo is not enough.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-6">
-        {c.threats.length > 1 ? (
-          <div className="grid items-center gap-4 sm:grid-cols-[1fr_auto_1fr]">
-            <div className="grid gap-2">
-              {c.threats.map((t) => (
-                <div key={t.id} className="flex items-center gap-2 rounded-md border p-2">
-                  <ConfidenceChip value={t.confidence} /> <Mono>{t.hostname}</Mono>
-                </div>
-              ))}
+    <div className="grid gap-6">
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Share2 className="size-5 text-primary" />
+              <CardTitle className="text-base font-semibold">Campaign Infrastructure Topology</CardTitle>
             </div>
-            <ArrowRight className="mx-auto hidden text-muted-foreground sm:block" aria-hidden="true" />
-            <div className="grid gap-2">
-              {shared.map((i) => (
-                <div key={`${i.kind}:${i.value}`} className="rounded-md border border-primary/30 bg-accent p-2">
-                  <Badge variant="outline">{i.kind}</Badge> <Mono>{i.value}</Mono>
-                  <div className="text-xs text-muted-foreground">shared by {i.n} sites</div>
-                </div>
-              ))}
-              {!shared.length ? <div className="text-sm text-muted-foreground">No shared identifier.</div> : null}
+            <CardDescription>
+              Threats cluster strictly on common payment numbers, wallets, or direct contact handles. Shared hosting or registrars never link campaigns.
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={shared.length ? 'default' : 'secondary'} className="text-xs">
+              {shared.length ? `${shared.length} Shared Infrastructure Point(s)` : 'Single Domain Incident'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-6">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 rounded-lg border bg-muted/30 p-3 text-xs">
+            <div>
+              <span className="text-muted-foreground block">Linked Domains:</span>
+              <span className="font-semibold text-sm">{c.threats.length}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block">Extracted Payment Nodes:</span>
+              <span className="font-semibold text-sm">{c.identifiers.length}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block">Shared Collection Points:</span>
+              <span className="font-semibold text-sm">{shared.length}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block">Clustering Standard:</span>
+              <span className="font-semibold text-sm text-emerald-600">Ghana Act 772 / Act 843</span>
             </div>
           </div>
-        ) : null}
-        {c.identifiers.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow><TableHead>Identifier</TableHead><TableHead>Kind</TableHead><TableHead>Seen on</TableHead></TableRow>
-            </TableHeader>
-            <TableBody>
-              {c.identifiers.map((i) => (
-                <TableRow key={`${i.kind}:${i.value}`}>
-                  <TableCell className="font-mono text-sm">{i.value}</TableCell>
-                  <TableCell>{i.kind}</TableCell>
-                  <TableCell className="font-mono text-xs">{i.hosts}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <Empty>No payment identifiers captured.</Empty>
-        )}
-      </CardContent>
-    </Card>
+
+          {/* Interactive Cluster Graph */}
+          {identNodes.length > 0 ? (
+            <div className="relative overflow-x-auto rounded-lg border bg-background/50 p-2">
+              <div className="flex justify-between px-4 py-2 text-xs font-semibold uppercase text-muted-foreground">
+                <span>Suspect Hostnames ({threatNodes.length})</span>
+                <span>Connecting Infrastructure ({identNodes.length})</span>
+              </div>
+              <svg
+                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                className="w-full min-w-[700px] h-auto select-none"
+                style={{ maxHeight: `${svgHeight}px` }}
+              >
+                <defs>
+                  <linearGradient id="link-grad-active" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="1" />
+                  </linearGradient>
+                  <linearGradient id="link-grad-shared" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#d97706" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="#d97706" stopOpacity="0.9" />
+                  </linearGradient>
+                </defs>
+
+                {/* Connecting Edges */}
+                {identNodes.flatMap((ident, j) => {
+                  const y2 = getIdentY(j)
+                  const hosts = ident.hosts.split(' | ')
+                  const identKey = `${ident.kind}:${ident.value}`
+
+                  return hosts.map((h) => {
+                    const i = threatNodes.findIndex((t) => t.hostname === h)
+                    if (i === -1) return null
+                    const y1 = getThreatY(i)
+                    const isConnected = activeNode === h || activeNode === identKey
+                    const isDimmed = activeNode !== null && !isConnected
+                    const isShared = ident.n > 1
+
+                    return (
+                      <path
+                        key={`${h}-${identKey}`}
+                        d={`M 260 ${y1} C 390 ${y1}, 450 ${y2}, 560 ${y2}`}
+                        fill="none"
+                        stroke={
+                          isConnected
+                            ? 'url(#link-grad-active)'
+                            : isShared
+                            ? 'url(#link-grad-shared)'
+                            : 'currentColor'
+                        }
+                        strokeWidth={isConnected ? 3 : isShared ? 2 : 1}
+                        strokeDasharray={isConnected ? 'none' : isShared ? 'none' : '4 4'}
+                        opacity={isDimmed ? 0.15 : isConnected ? 1 : isShared ? 0.75 : 0.3}
+                        className="transition-all duration-200"
+                      />
+                    )
+                  })
+                })}
+
+                {/* Threat Nodes (Left) */}
+                {threatNodes.map((t, i) => {
+                  const y = getThreatY(i)
+                  const isNodeActive = activeNode === t.hostname
+                  const isConnectedToActive =
+                    activeNode !== null &&
+                    identNodes.some((ident) => `${ident.kind}:${ident.value}` === activeNode && ident.hosts.includes(t.hostname))
+                  const isDimmed = activeNode !== null && !isNodeActive && !isConnectedToActive
+
+                  return (
+                    <g
+                      key={t.id}
+                      transform={`translate(15, ${y - 24})`}
+                      className="cursor-pointer"
+                      onMouseEnter={() => setActiveNode(t.hostname)}
+                      onMouseLeave={() => setActiveNode(null)}
+                    >
+                      <rect
+                        width="245"
+                        height="48"
+                        rx="8"
+                        className={`transition-colors ${
+                          isNodeActive || isConnectedToActive
+                            ? 'fill-accent stroke-primary stroke-2 shadow-sm'
+                            : 'fill-card stroke-border hover:fill-accent/60'
+                        }`}
+                        opacity={isDimmed ? 0.4 : 1}
+                      />
+                      <foreignObject x="10" y="6" width="225" height="36">
+                        <div className="flex items-center justify-between text-xs h-full">
+                          <div className="flex items-center gap-2 overflow-hidden mr-2">
+                            <Globe className="size-3.5 shrink-0 text-muted-foreground" />
+                            <span className="font-mono truncate font-medium">{t.hostname}</span>
+                          </div>
+                          <ConfidenceChip value={t.confidence} />
+                        </div>
+                      </foreignObject>
+                    </g>
+                  )
+                })}
+
+                {/* Identifier Nodes (Right) */}
+                {identNodes.map((ident, j) => {
+                  const y = getIdentY(j)
+                  const identKey = `${ident.kind}:${ident.value}`
+                  const isNodeActive = activeNode === identKey
+                  const isConnectedToActive =
+                    activeNode !== null &&
+                    ident.hosts.split(' | ').includes(activeNode)
+                  const isDimmed = activeNode !== null && !isNodeActive && !isConnectedToActive
+                  const isShared = ident.n > 1
+
+                  return (
+                    <g
+                      key={identKey}
+                      transform={`translate(560, ${y - 24})`}
+                      className="cursor-pointer"
+                      onMouseEnter={() => setActiveNode(identKey)}
+                      onMouseLeave={() => setActiveNode(null)}
+                    >
+                      <rect
+                        width="265"
+                        height="48"
+                        rx="8"
+                        className={`transition-colors ${
+                          isNodeActive || isConnectedToActive
+                            ? 'fill-accent stroke-primary stroke-2 shadow-sm'
+                            : isShared
+                            ? 'fill-card stroke-amber-500/70 hover:fill-accent/60'
+                            : 'fill-card stroke-border hover:fill-accent/60'
+                        }`}
+                        opacity={isDimmed ? 0.4 : 1}
+                      />
+                      <foreignObject x="10" y="6" width="245" height="36">
+                        <div className="flex items-center justify-between text-xs h-full">
+                          <div className="flex items-center gap-2 overflow-hidden mr-2">
+                            {kindIcon(ident.kind)}
+                            <div className="truncate">
+                              <span className="font-mono font-medium block truncate">{ident.value}</span>
+                              <span className="text-[10px] text-muted-foreground capitalize">{ident.kind}</span>
+                            </div>
+                          </div>
+                          {isShared ? (
+                            <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-500/30 shrink-0">
+                              Linked ({ident.n})
+                            </Badge>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground shrink-0">1 site</span>
+                          )}
+                        </div>
+                      </foreignObject>
+                    </g>
+                  )
+                })}
+              </svg>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No financial payment identifiers or contact channels captured on page. Case is tracking domain only.
+            </div>
+          )}
+
+          {/* Comprehensive Identifiers Table */}
+          {c.identifiers.length ? (
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Captured Infrastructure Registry
+              </h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Value</TableHead>
+                    <TableHead>Attributed Domains</TableHead>
+                    <TableHead className="text-right">Link Strength</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {c.identifiers.map((i) => (
+                    <TableRow key={`${i.kind}:${i.value}`} className={i.n > 1 ? 'bg-accent/30 font-medium' : undefined}>
+                      <TableCell className="capitalize flex items-center gap-1.5 py-3">
+                        {kindIcon(i.kind)}
+                        <span>{i.kind === 'phone' ? 'MoMo Phone' : i.kind}</span>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{i.value}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{i.hosts}</TableCell>
+                      <TableCell className="text-right">
+                        {i.n > 1 ? (
+                          <Badge variant="default" className="text-xs">
+                            Campaign Link ({i.n} sites)
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-muted-foreground">
+                            Isolated
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -263,5 +516,107 @@ function Audit({ c }: { c: CaseDetail }) {
         </TableBody>
       </Table>
     </Card>
+  )
+}
+
+function Dossier({ caseId }: { caseId: string }) {
+  const q = useQuery({ queryKey: ['case-dossier', caseId], queryFn: () => api.dossier(caseId) })
+  const d = q.data
+
+  if (q.error) return <ErrorNote error={q.error} />
+  if (!d) return <Skeleton className="h-64 w-full" />
+
+  const download = () => {
+    const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${d.dossier_id}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    toast.success('Dossier exported to JSON')
+  }
+
+  return (
+    <div className="grid gap-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-5 text-emerald-600" />
+              <CardTitle className="text-base font-semibold">Regulatory Evidence Dossier</CardTitle>
+            </div>
+            <CardDescription>
+              Cryptographically hashed evidence manifest admissible under Ghana Electronic Transactions Act (Act 772, s. 92).
+            </CardDescription>
+          </div>
+          <Button size="sm" onClick={download}>
+            <Download className="mr-1.5 size-4" /> Download JSON
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="rounded-md border bg-muted/40 p-3 text-xs font-mono space-y-1">
+            <div className="flex flex-wrap justify-between gap-1">
+              <span className="text-muted-foreground">DOSSIER ID:</span>
+              <span className="font-semibold text-foreground">{d.dossier_id}</span>
+            </div>
+            <div className="flex flex-wrap justify-between gap-1">
+              <span className="text-muted-foreground">MANIFEST SHA-256:</span>
+              <span className="font-semibold text-foreground">{d.manifest_sha256}</span>
+            </div>
+            <div className="flex flex-wrap justify-between gap-1">
+              <span className="text-muted-foreground">RULES ENGINE:</span>
+              <span>{d.rules_version}</span>
+            </div>
+            <div className="flex flex-wrap justify-between gap-1">
+              <span className="text-muted-foreground">TIMESTAMP:</span>
+              <span>{d.generated_at} UTC</span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md border p-3">
+              <div className="text-xs font-semibold text-muted-foreground uppercase">Designated Agent Authority</div>
+              <div className="mt-1 font-medium">{d.legal_basis.designated_agent.entity}</div>
+              <div className="text-xs text-muted-foreground">Representing: {d.legal_basis.designated_agent.brand_name}</div>
+              <div className="mt-2 text-xs font-mono break-all text-muted-foreground">
+                Auth Letter SHA-256: <Mono>{d.legal_basis.designated_agent.authorisation_letter_sha256}</Mono>
+              </div>
+            </div>
+            <div className="rounded-md border p-3">
+              <div className="text-xs font-semibold text-muted-foreground uppercase">Statutory Framework (Ghana)</div>
+              <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground space-y-1">
+                {d.legal_basis.statutes.map((s, idx) => (
+                  <li key={idx}>{s}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">Evidence Assets Verified in Dossier</div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Hostname</TableHead>
+                  <TableHead>Verdict</TableHead>
+                  <TableHead>HTML SHA-256</TableHead>
+                  <TableHead>Screenshot SHA-256</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {d.threats.map((t) => (
+                  <TableRow key={t.threat_id}>
+                    <TableCell className="font-mono text-sm">{t.hostname}</TableCell>
+                    <TableCell><ConfidenceChip value={t.confidence} /></TableCell>
+                    <TableCell className="font-mono text-xs">{t.hashes.html_sha256 ? `${t.hashes.html_sha256.slice(0, 16)}…` : 'none'}</TableCell>
+                    <TableCell className="font-mono text-xs">{t.hashes.screenshot_sha256 ? `${t.hashes.screenshot_sha256.slice(0, 16)}…` : 'none'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

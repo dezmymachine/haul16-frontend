@@ -7,14 +7,14 @@ type Look = { bg: string; accent: string; headline: string; sub: string; cta: st
 
 function lookFor(host: string): Look {
   if (host.includes('blog'))
-    return { bg: '#f4f1ea', accent: '#475569', headline: 'Notes from a Nkwa Exchange user', sub: 'A fan blog about local crypto exchanges. No payments.', cta: 'Read more' }
+    return { bg: '#fefce8', accent: '#ca8a04', headline: 'Notes from a Yellow Card user', sub: 'A fan blog about local crypto exchanges. No payments.', cta: 'Read more' }
   if (host.includes('farms'))
-    return { bg: '#ecf6e9', accent: '#2f7d32', headline: 'Nkwa Farms: fresh produce, Kumasi', sub: 'Order tomatoes, plantain and yam. Delivery in Kumasi.', cta: 'Order now' }
+    return { bg: '#ecf6e9', accent: '#2f7d32', headline: 'Yellow Farms: fresh produce, Kumasi', sub: 'Order tomatoes, plantain and yam. Delivery in Kumasi.', cta: 'Order now' }
   if (host.includes('airdrop'))
-    return { bg: '#fff4e5', accent: '#c2410c', headline: 'Nkwa Exchange airdrop: claim 500 USDT', sub: 'Limited time bonus. Send a small activation deposit to receive your airdrop.', cta: 'Claim airdrop', phone: '024 000 0101' }
+    return { bg: '#fffbeb', accent: '#d97706', headline: 'Yellow Card airdrop: claim 500 USDT', sub: 'Limited time bonus. Send a small activation deposit to receive your airdrop.', cta: 'Claim airdrop', phone: '024 000 0101' }
   if (host.includes('wallet'))
-    return { bg: '#eef2ff', accent: '#4338ca', headline: 'Verify your Nkwa wallet', sub: 'Your account is limited. Verify your wallet within 24 hours to avoid suspension.', cta: 'Verify wallet', phone: '020 077 1234' }
-  return { bg: '#eaf2ff', accent: '#1d4ed8', headline: 'Nkwa Exchange Customer Support Desk', sub: 'Double your USDT. Guaranteed returns. Send your deposit to activate your account.', cta: 'Deposit now', phone: host.includes('gh.xyz') || host.includes('login') ? '024 555 0142' : '024 000 0101' }
+    return { bg: '#eef2ff', accent: '#4338ca', headline: 'Verify your Yellow Card wallet', sub: 'Your account is limited. Verify your wallet within 24 hours to avoid suspension.', cta: 'Verify wallet', phone: '020 077 1234' }
+  return { bg: '#fefce8', accent: '#eab308', headline: 'Yellow Card Customer Support Desk', sub: 'Double your USDT. Guaranteed returns. Send your deposit to activate your account.', cta: 'Deposit now', phone: host.includes('gh') || host.includes('staging') || host.includes('login') ? '024 555 0142' : '024 000 0101' }
 }
 
 /** A small browser-window picture of a (fictional) captured page. */
@@ -33,7 +33,7 @@ export function demoScreenshot(host: string): string {
 <text x="94" y="24" font-size="12" fill="#475569">https://${esc(host)}/</text>
 <rect y="38" width="800" height="412" fill="${l.bg}"/>
 <rect y="38" width="800" height="54" fill="${l.accent}"/>
-<text x="28" y="72" font-size="20" font-weight="700" fill="#ffffff">${esc(host.includes('farms') ? 'Nkwa Farms' : 'Nkwa Exchange')}</text>
+<text x="28" y="72" font-size="20" font-weight="700" fill="#ffffff">${esc(host.includes('farms') ? 'Yellow Farms' : 'Yellow Card')}</text>
 <text x="560" y="70" font-size="13" fill="#ffffff" opacity="0.85">Home    Markets    Support</text>
 <text x="48" y="186" font-size="30" font-weight="700" fill="#0f172a">${esc(lines[0])}</text>
 <text x="48" y="224" font-size="30" font-weight="700" fill="#0f172a">${esc(lines[1])}</text>

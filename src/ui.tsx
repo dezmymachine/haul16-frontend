@@ -29,6 +29,8 @@ export const CHANNEL_LABEL: Record<string, string> = {
   telco_telecel: 'Telecel fraud',
   telco_airteltigo: 'AT fraud',
   csa: 'Cyber Security Authority',
+  telegram_abuse: 'Telegram abuse desk',
+  meta_whatsapp: 'WhatsApp brand protection',
 }
 
 export function ConfidenceChip({ value }: { value: Confidence | string | null | undefined }) {

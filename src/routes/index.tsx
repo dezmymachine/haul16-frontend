@@ -92,7 +92,7 @@ function DashboardPreview() {
       <div className="grid min-w-0 flex-1 content-start gap-2.5 bg-background p-3 sm:gap-3 sm:p-4">
         <div>
           <div className="text-base font-bold sm:text-lg">Watch</div>
-          <div className="text-[11px] text-muted-foreground">Look-alike sites matched against Nkwa Exchange, live.</div>
+          <div className="text-[11px] text-muted-foreground">Look-alike sites matched against Yellow Card, live.</div>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {[
