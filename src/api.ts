@@ -131,6 +131,69 @@ export interface CaseDetail extends CaseSummary {
   audit: AuditRow[]
 }
 
+export interface CaseDossierThreat {
+  threat_id: string
+  hostname: string
+  url: string
+  detected_at: string
+  captured_at: string | null
+  confidence: Confidence | null
+  score: number | null
+  reason_codes: string[]
+  evidence: Record<string, unknown>
+  hashes: {
+    html_sha256: string | null
+    screenshot_sha256: string | null
+    screenshot_ref: string | null
+    favicon_mmh3: number | null
+    favicon_sha256: string | null
+  }
+  attribution: {
+    registered_domain: string | null
+    registrar: string | null
+    registrar_abuse_email: string | null
+    hosting_network: string | null
+    host_abuse_email: string | null
+    ips: string[]
+  }
+}
+
+export interface CaseDossier {
+  dossier_id: string
+  generated_at: string
+  rules_version: string
+  manifest_sha256: string
+  legal_basis: {
+    jurisdiction: string
+    statutes: string[]
+    designated_agent: {
+      entity: string
+      brand_id: string
+      brand_name: string
+      official_domains: string[]
+      authorisation_letter_ref: string
+      authorisation_letter_sha256: string
+    }
+  }
+  case: {
+    id: string
+    title: string
+    status: string
+    opened_at: string
+    first_detected: string
+  }
+  campaign_linkage: {
+    linking_kinds_enforced: string[]
+    shared_identifiers: { kind: string; value: string; hosts: string; n: number }[]
+    explanation: string
+  }
+  threats: CaseDossierThreat[]
+  notices: Notice[]
+  clock_events: ClockEvent[]
+  chain_of_custody: AuditRow[]
+  limitations: string[]
+}
+
 export interface CtStats {
   status: string
   logs: number
@@ -234,6 +297,7 @@ export const api = {
   threat: (id: string) => req<Threat>(`/api/threats/${id}`),
   cases: () => req<CaseSummary[]>('/api/cases'),
   case: (id: string) => req<CaseDetail>(`/api/cases/${id}`),
+  dossier: (id: string) => req<CaseDossier>(`/api/cases/${id}/dossier`),
   notices: (status?: NoticeStatus) =>
     req<NoticeRow[]>(`/api/notices${status ? `?status=${status}` : ''}`),
   redraft: (id: string) => post<{ drafted: number }>(`/api/cases/${id}/redraft`),
@@ -245,9 +309,15 @@ export const api = {
     post<ClockEvent[]>(`/api/notices/${id}/clock`, { event, note }),
   inject: (url: string, as_host?: string) =>
     post<{ threat_id: string | null; duplicate: boolean }>('/api/inject', { url, as_host: as_host || null }),
+  ingestReal: (limit = 3) =>
+    post<{ ingested_count: number; targets: string[]; results: Record<string, unknown>[] }>(
+      '/api/threats/ingest-real',
+      { limit }
+    ),
   demoClone: (variant: 'clone' | 'clone2' | 'decoy') =>
     post<{ threat_id: string | null; duplicate: boolean; host: string }>('/api/demo/clone', { variant }),
   demoReset: () => post<{ ok: boolean }>('/api/demo/reset'),
+  demoSeed: () => post<{ ok: boolean; threats: number; cases: number }>('/api/demo/seed'),
   report: (month: string) => req<Report>(`/api/report?month=${month}`),
   audit: () => req<AuditRow[]>('/api/audit'),
 }

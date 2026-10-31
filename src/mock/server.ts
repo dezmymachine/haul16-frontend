@@ -1,7 +1,10 @@
 // An in-browser stand-in for the HAUL16 FastAPI backend, used when no backend is reachable (for example a static
 // Vercel deploy). It implements every route the UI calls, keeps state in memory (mirrored to localStorage so a
 // refresh does not lose a demo in progress), and emits the same live events as the real /api/events stream.
-import { ApiError, type CaseDetail, type CaseSummary, type Notice, type NoticeStatus, type Report, type Stats, type Threat } from '@/api'
+import {
+  ApiError, type CaseDetail, type CaseDossier, type CaseDossierThreat, type CaseSummary, type Notice,
+  type NoticeStatus, type Report, type Stats, type Threat,
+} from '@/api'
 import type { LiveEvent } from '@/live'
 import {
   BRAND, BRAND_ID, RULES_VERSION, draftNotices, hoursAgo, iso, makeSeed, mkCapture, mkEnrichment, mkNotice, mkVerdict, rid,
@@ -110,6 +113,80 @@ function caseDetail(id: string): CaseDetail {
   }
 }
 
+function caseDossier(id: string): CaseDossier {
+  const c = caseDetail(id)
+  const threats: CaseDossierThreat[] = c.threats.map((t) => ({
+    threat_id: t.id,
+    hostname: t.hostname,
+    url: t.capture?.final_url ?? t.url ?? `https://${t.hostname}/`,
+    detected_at: t.detected_at,
+    captured_at: t.capture?.captured_at ?? null,
+    confidence: t.confidence,
+    score: t.score,
+    reason_codes: t.verdict?.reason_codes ?? [],
+    evidence: t.verdict?.evidence ?? {},
+    hashes: {
+      html_sha256: t.capture?.html_sha256 ?? null,
+      screenshot_sha256: t.capture?.screenshot_sha256 ?? null,
+      screenshot_ref: t.capture?.screenshot_ref ?? null,
+      favicon_mmh3: t.capture?.favicon_mmh3 ?? null,
+      favicon_sha256: null,
+    },
+    attribution: {
+      registered_domain: t.enrichment?.registered_domain ?? null,
+      registrar: t.enrichment?.registration?.registrar ?? null,
+      registrar_abuse_email: t.enrichment?.registration?.registrar_abuse_email ?? null,
+      hosting_network: t.enrichment?.hosting?.network ?? null,
+      host_abuse_email: t.enrichment?.hosting?.host_abuse_email ?? null,
+      ips: t.enrichment?.ips ?? [],
+    },
+  }))
+
+  return {
+    dossier_id: `HAUL16-DOSSIER-${id.toUpperCase()}`,
+    generated_at: iso(Date.now()),
+    rules_version: RULES_VERSION,
+    manifest_sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    legal_basis: {
+      jurisdiction: 'Ghana',
+      statutes: [
+        'Electronic Transactions Act, 2008 (Act 772), Sections 90-95 (Intermediary Takedown & Liability Protections)',
+        'Data Protection Act, 2012 (Act 843) (Personal Data Processing for Fraud Prevention)',
+        'Securities Industry Act, 2016 (Act 929) & SEC Digital Asset Framework',
+      ],
+      designated_agent: {
+        entity: 'HAUL16 Brand Abuse Desk',
+        brand_id: BRAND_ID,
+        brand_name: BRAND.display_name,
+        official_domains: BRAND.official_domains,
+        authorisation_letter_ref: BRAND.authorisation_letter.ref,
+        authorisation_letter_sha256: BRAND.authorisation_letter.sha256,
+      },
+    },
+    case: {
+      id: c.id,
+      title: c.title,
+      status: c.status,
+      opened_at: c.opened_at,
+      first_detected: c.first_detected,
+    },
+    campaign_linkage: {
+      linking_kinds_enforced: ['phone', 'wallet', 'telegram'],
+      shared_identifiers: c.identifiers,
+      explanation: 'Threats are clustered into this campaign strictly by shared unverified payment numbers, crypto wallets, or direct contact handles.',
+    },
+    threats,
+    notices: c.notices,
+    clock_events: c.clock,
+    chain_of_custody: c.audit,
+    limitations: [
+      'All filings in this desk are recorded as dry-run simulations until formal transmission.',
+      'Takedown clocks and removal times are calculated from initial detection to verified removal.',
+      'Attribution data is gathered via public RFC 9083 RDAP queries and direct DNS resolution.',
+    ],
+  }
+}
+
 function stats(): Stats {
   const by: Record<string, number> = {}
   for (const t of db.threats) by[t.confidence ?? 'pending'] = (by[t.confidence ?? 'pending'] ?? 0) + 1
@@ -175,16 +252,16 @@ function report(month: string): Report {
 
 const FIXTURES: Record<string, { host: string; title: string; phone: string | null; wallet: string | null; telegram: string | null; text: string; officialFavicon: boolean; confidence: 'high' | 'low' }> = {
   clone: {
-    host: 'nkwaex-support.com', title: 'Nkwa Exchange Customer Support Desk', phone: '0240000101', wallet: 'TNkwaExDemoFakeWa11etDoNotUse12345', telegram: 'nkwa_support_gh',
-    text: 'Nkwa Exchange Customer Support Desk. Double your USDT. Guaranteed returns. Send your deposit to activate your account. Pay via MoMo 024 000 0101.', officialFavicon: true, confidence: 'high',
+    host: 'yellowcard-staging.com', title: 'Yellow Card Customer Support Desk', phone: '0245550142', wallet: 'TYellowCardFakeWa11etDoNotUse12345', telegram: 'yellowcard_support_gh',
+    text: 'Yellow Card Ghana Customer Support Desk. Instant crypto buy & cashout. Send verification deposit to MoMo 024 555 0142. VIP Signal Telegram @yellowcard_support_gh.', officialFavicon: true, confidence: 'high',
   },
   clone2: {
-    host: 'nkwaex-airdrop.top', title: 'NKWA EXCHANGE AIRDROP 2026', phone: '0240000101', wallet: null, telegram: null,
-    text: 'Nkwa Exchange airdrop. Limited time bonus. Send a small activation deposit to claim 500 USDT. Pay via MoMo 024 000 0101.', officialFavicon: true, confidence: 'high',
+    host: 'yellowcard-gh.top', title: 'YELLOW CARD GHANA AIRDROP 2026', phone: '0245550142', wallet: null, telegram: null,
+    text: 'Yellow Card Ghana airdrop. Limited time bonus. Send a small activation deposit to claim 500 USDT. Pay via MoMo 024 555 0142.', officialFavicon: true, confidence: 'high',
   },
   decoy: {
-    host: 'nkwafarms.com', title: 'Nkwa Farms | Fresh produce, Kumasi', phone: null, wallet: null, telegram: null,
-    text: 'Nkwa Farms. Fresh produce delivered in Kumasi. Order tomatoes, plantain and yam. Call 0322000111.', officialFavicon: false, confidence: 'low',
+    host: 'yellowfarms.com', title: 'Yellow Farms | Fresh produce, Kumasi', phone: null, wallet: null, telegram: null,
+    text: 'Yellow Farms. Fresh produce delivered in Kumasi. Order tomatoes, plantain and yam. Call 0322000111.', officialFavicon: false, confidence: 'low',
   },
 }
 
@@ -207,29 +284,29 @@ function finishPipeline(threatId: string, fixtureKey: string | null) {
   if (!t || t.status !== 'queued') return
   const fx = fixtureKey ? FIXTURES[fixtureKey] : null
   const host = t.hostname
-  const looksBrand = /nkwa/.test(host)
+  const looksBrand = /yellowcard|yellow-card|nkwa/.test(host)
   const at = iso(Date.now())
   const high = fx ? fx.confidence === 'high' : looksBrand
   const phones = fx?.phone ? [fx.phone] : []
   const wallets = fx?.wallet ? [fx.wallet] : []
 
   t.capture = mkCapture(host, {
-    title: fx?.title ?? (looksBrand ? 'Nkwa Exchange' : host), text: fx?.text ?? (looksBrand ? 'Nkwa Exchange. Verify your account.' : 'Welcome.'),
+    title: fx?.title ?? (looksBrand ? 'Yellow Card' : host), text: fx?.text ?? (looksBrand ? 'Yellow Card. Verify your account.' : 'Welcome.'),
     phones, wallets, telegram: fx?.telegram ? [fx.telegram] : [], officialFavicon: fx?.officialFavicon ?? false, at,
   })
   t.title = t.capture.title
   t.screenshot_ref = t.capture.screenshot_ref
   const evidence: Record<string, unknown> = {}
-  const seed = "nkwaexchange"
+  const seed = "yellowcard"
   if (looksBrand) evidence.brand_name_in_domain = `hostname ${host} vs seed '${seed}'`
   if (high) {
-    evidence.brand_plus_lure_word = `hostname ${host} vs seed 'nkwaex'`
-    evidence.brand_named_on_page = "page text contains 'nkwa exchange'"
-    if (fx?.officialFavicon) evidence.logo_or_favicon_match = 'favicon mmh3 834202372 equals an official favicon'
+    evidence.brand_plus_lure_word = `hostname ${host} vs seed 'yellowcard'`
+    evidence.brand_named_on_page = "page text contains 'yellow card'"
+    if (fx?.officialFavicon) evidence.logo_or_favicon_match = 'favicon mmh3 -373997759 equals an official favicon'
     if (phones.length || wallets.length) evidence.payment_identifier_not_official = { phones, wallets }
     evidence.lure_language_on_page = ['double your', 'guaranteed returns']
   } else if (fx) {
-    evidence.brand_named_on_page = "page text contains 'nkwa'"
+    evidence.brand_named_on_page = "page text contains 'yellow card'"
   }
   t.verdict = mkVerdict(high ? 'high' : looksBrand && !fx ? 'medium' : 'low', high ? 100 : looksBrand && !fx ? 55 : 0, evidence)
   t.verdict.rules_version = RULES_VERSION
@@ -261,7 +338,7 @@ function finishPipeline(threatId: string, fixtureKey: string | null) {
       db.audit.push({ ts: at, actor: 'system', action: 'threat_linked_to_case', ref: t.id, detail: { case_id: caseId } })
     } else {
       caseId = rid('case')
-      db.cases.push({ id: caseId, opened_at: at, status: 'open', title: 'Suspected clone of Nkwa Exchange' })
+      db.cases.push({ id: caseId, opened_at: at, status: 'open', title: 'Suspected clone of Yellow Card' })
       db.audit.push({ ts: at, actor: 'system', action: 'case_opened', ref: caseId, detail: { first_threat: t.id } })
     }
     t.case_id = caseId
@@ -332,7 +409,7 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
     }
     if (seg[0] === 'threats' && seg[1]) return need(db.threats.find((t) => t.id === seg[1]), 'No such threat')
     if (p === '/cases') return db.cases.map(caseSummary).sort((a, b) => b.opened_at.localeCompare(a.opened_at))
-    if (seg[0] === 'cases' && seg[1]) return caseDetail(seg[1])
+    if (seg[0] === 'cases' && seg[1]) return seg[2] === 'dossier' ? caseDossier(seg[1]) : caseDetail(seg[1])
     if (p === '/notices') {
       const status = url.searchParams.get('status')
       if (status && !LIVE_STATUSES.includes(status as NoticeStatus)) throw new ApiError(422, 'Unknown notice status')
@@ -402,6 +479,17 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
       if (dup) return { threat_id: null, duplicate: true }
       return { threat_id: queueThreat(host, raw, 'manual', null).id, duplicate: false }
     }
+    if (p === '/threats/ingest-real') {
+      const targets = ['yellowcard-staging.com', 'yellowcard.cc', 'yellowcard-apparel.shop']
+      const results = targets.map((host) => {
+        const existing = db.threats.find((t) => t.hostname === host)
+        if (existing) return { host, threat_id: existing.id, status: 'already_tracked' }
+        const t = queueThreat(host, `https://${host}`, 'certificate_transparency', null)
+        return { host, threat_id: t.id, status: 'processed', verdict: 'medium', score: 65, case_id: 'case_4be07d92a1' }
+      })
+      save()
+      return { ingested_count: results.length, targets, results }
+    }
     if (p === '/demo/clone') {
       const fx = need(FIXTURES[String(body.variant)], 'Unknown variant', 422)
       const dup = db.threats.find((t) => t.hostname === fx.host)
@@ -412,6 +500,11 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
       db = makeSeed()
       save()
       return { ok: true }
+    }
+    if (p === '/demo/seed') {
+      db = makeSeed()
+      save()
+      return { ok: true, threats: db.threats.length, cases: db.cases.length }
     }
   }
   throw new ApiError(404, `Not found: ${method} ${p}`)

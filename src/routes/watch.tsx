@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Area, AreaChart, Cell, Pie, PieChart, XAxis } from 'recharts'
 import { ArrowRight, ClipboardCheck, FolderOpen, Hourglass, Radio, Send, ShieldAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -290,48 +291,87 @@ function DemoPanel() {
     mutationFn: api.demoClone,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stats'] }),
   })
+  const ingest = useMutation({
+    mutationFn: () => api.ingestReal(3),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['threats'] })
+      qc.invalidateQueries({ queryKey: ['cases'] })
+      toast.success(`Ingested ${data.ingested_count} real lookalike targets from Certificate Transparency`)
+    },
+    onError: (err: Error) => {
+      toast.error(`CT Ingestion failed: ${err.message}`)
+    },
+  })
   const reset = useMutation({
     mutationFn: api.demoReset,
     onSuccess: () => {
       qc.setQueryData(['live', 'feed'], [])
       qc.invalidateQueries()
+      toast.success('Database reset')
+    },
+  })
+  const seed = useMutation({
+    mutationFn: api.demoSeed,
+    onSuccess: () => {
+      qc.invalidateQueries()
+      toast.success('Sample scenario loaded into database')
     },
   })
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Run a demo clone</CardTitle>
+        <CardTitle>Live Threat Ingestion</CardTitle>
         <CardDescription>
-          Pushes a fictional site through the real capture, scoring, case and notice pipeline. Served locally, labelled as a fixture.
+          Pull live lookalike certificates from Certificate Transparency logs, or run test scenarios through the Browserbase cloud browser.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-2">
-        <Button variant="outline" className="h-auto justify-between" onClick={() => run.mutate('clone')} disabled={run.isPending}>
-          Clone A <span className="font-mono text-xs text-muted-foreground">nkwaex-support.com</span>
+        <Button
+          variant="default"
+          className="h-auto py-2.5 justify-center font-medium shadow-sm bg-primary hover:bg-primary/90"
+          onClick={() => ingest.mutate()}
+          disabled={ingest.isPending}
+        >
+          <Radio className="mr-2 size-4 animate-pulse text-emerald-400" />
+          {ingest.isPending ? 'Querying CT Logs & Capturing…' : 'Scan Live CT Logs (Real Lookalikes)'}
         </Button>
-        <Button variant="outline" className="h-auto justify-between" onClick={() => run.mutate('clone2')} disabled={run.isPending}>
-          Clone B, same operator <span className="font-mono text-xs text-muted-foreground">nkwaex-airdrop.top</span>
+        <div className="relative py-1">
+          <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+          <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-card px-2 text-muted-foreground">Or inject sample targets</span></div>
+        </div>
+        <Button variant="outline" className="h-auto justify-between text-xs" onClick={() => api.inject('https://yellowcard-staging.com').then(() => qc.invalidateQueries())} disabled={ingest.isPending}>
+          Real CT target <span className="font-mono text-muted-foreground">yellowcard-staging.com</span>
         </Button>
-        <Button variant="ghost" className="h-auto justify-between" onClick={() => run.mutate('decoy')} disabled={run.isPending}>
-          Decoy business <span className="font-mono text-xs text-muted-foreground">nkwafarms.com</span>
+        <Button variant="outline" className="h-auto justify-between text-xs" onClick={() => api.inject('https://yellowcard.cc').then(() => qc.invalidateQueries())} disabled={ingest.isPending}>
+          Real CT target <span className="font-mono text-muted-foreground">yellowcard.cc</span>
+        </Button>
+        <Button variant="ghost" className="h-auto justify-between text-xs" onClick={() => run.mutate('clone')} disabled={run.isPending}>
+          Local test fixture <span className="font-mono text-muted-foreground">clone-fixture.test</span>
         </Button>
         {run.data?.duplicate ? <p className="text-xs text-muted-foreground">Already tracked. Reset the demo to run it again.</p> : null}
         <ErrorNote error={run.error} />
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="link" size="sm" className="justify-self-start px-0 text-muted-foreground">Reset demo data</Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Reset demo data?</AlertDialogTitle>
-              <AlertDialogDescription>Deletes all threats, cases, notices and the audit log. This cannot be undone.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" onClick={() => reset.mutate()}>Delete everything</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ErrorNote error={ingest.error} />
+        <div className="flex items-center justify-between pt-1">
+          <Button variant="secondary" size="sm" onClick={() => seed.mutate()} disabled={seed.isPending}>
+            Load sample scenario
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="link" size="sm" className="px-0 text-muted-foreground">Reset data</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset desk data?</AlertDialogTitle>
+                <AlertDialogDescription>Deletes all threats, cases, notices and the audit log. This cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={() => reset.mutate()}>Delete everything</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </CardContent>
     </Card>
   )
