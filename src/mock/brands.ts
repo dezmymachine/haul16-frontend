@@ -113,6 +113,7 @@ function setupState(bs: BrandState, b: BrandSummary, counts: MockCounts): SetupS
     brand_id: b.id, step: !(ready && !undecided) ? 2 : !(verified && letter) ? 3 : 4, complete: active,
     steps: { brand: { done: true }, profile: { done: ready, running }, review: { done: !undecided, count: undecided }, ownership: { done: verified }, letter: { done: letter }, protection: { done: active } },
     next_action: next, sweep: bs.sweeps?.[b.id] ?? { status: 'none' }, counts,
+    patrol: { hours: b.patrol_hours ?? 6, next_at: b.patrol_hours === 0 ? null : iso(Date.now() + (b.patrol_hours ?? 6) * 3_600_000) },
   }
 }
 
@@ -120,12 +121,27 @@ function setupState(bs: BrandState, b: BrandSummary, counts: MockCounts): SetupS
 function startSweep(bs: BrandState, id: string, save: () => void) {
   bs.sweeps ??= {}
   const total = 324
-  bs.sweeps[id] = { status: 'running', phase: 'checking', generated: total, checked: 0, registered: 0, queued: 0, skipped_known: 0 }
+  const skip = (reason: string) => ({ label: '', status: 'skipped' as const, reason: `${reason} (sample data)` })
+  const sources = () => ({
+    dns_sweep: { label: 'Look-alike domains', status: 'running' as const },
+    ct_history: { label: 'Certificate history', status: 'pending' as const },
+    telegram_handles: { label: 'Telegram accounts', status: 'pending' as const },
+    urlscan: { ...skip('URLSCAN_API_KEY is not set'), label: 'urlscan.io' },
+    web_search: { ...skip('SEARCH_API_KEY is not set'), label: 'Web search' },
+    news_mentions: { ...skip('SEARCH_API_KEY is not set'), label: 'Press warnings' },
+    meta_ads: { ...skip('META_AD_LIBRARY_TOKEN is not set'), label: 'Meta ads' },
+  })
+  bs.sweeps[id] = { status: 'running', phase: 'checking', generated: total, checked: 0, registered: 0, queued: 0, skipped_known: 0, sources: sources() }
   const t = setInterval(() => {
     const s = bs.sweeps![id]
     s.checked = Math.min(total, (s.checked ?? 0) + 27)
     s.registered = Math.round((s.checked / total) * 6)
+    const src = s.sources!
+    src.dns_sweep = { ...src.dns_sweep, status: s.checked >= total ? 'ok' : 'running', generated: total, checked: s.checked, registered: s.registered, found: s.registered, queued: 0 }
+    if (s.checked >= total * 0.4 && src.ct_history.status === 'pending') src.ct_history = { ...src.ct_history, status: 'ok', found: 3, queued: 0 }
+    if (s.checked >= total * 0.7 && src.telegram_handles.status === 'pending') src.telegram_handles = { ...src.telegram_handles, status: 'ok', checked: 80, existing: 4, found: 0, queued: 0 }
     if (s.checked >= total) {
+      src.ct_history.status = 'ok'; src.telegram_handles.status = 'ok'
       Object.assign(s, { status: 'done', phase: 'done', queued: 0, updated_at: iso(Date.now()) })
       clearInterval(t)
       save()
@@ -166,9 +182,11 @@ export function handleBrandRoute(bs: BrandState, method: string, seg: string[], 
     return { deleted: b.id }
   }
   if (!sub && method === 'PATCH') {
+    if (!body.seed_terms && typeof body.patrol_hours === 'number') { b.patrol_hours = body.patrol_hours; save(); return b }
     const terms = [...new Set<string>((body.seed_terms ?? []).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '')).filter((t: string) => t.length >= 4))]
     if (!terms.length) throw new ApiError(422, 'Add at least one name of 4 or more letters or digits')
-    b.seed_terms = terms
+    if (body.seed_terms) b.seed_terms = terms
+    if (typeof body.patrol_hours === 'number') b.patrol_hours = body.patrol_hours
     save()
     return b
   }

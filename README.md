@@ -353,6 +353,21 @@ How it works:
 
 Run against the live backend: start `haul16-backend` (its README has the env vars, including `AUTH_OWNER_PASSWORD`), then `npm run dev`; the Vite proxy sends `/api` to `:8000`, so the app uses the real API and the "Sample data" badge disappears.
 
+## Milestones 2 to 5 in the UI (discovery, Telegram and WhatsApp, patrols and alerts, real filing)
+
+| Where | What it does |
+|---|---|
+| Home, **Scan** card | Runs the discovery scan and lists every source with its result: look-alike domains, certificate history, Telegram accounts (no key), urlscan, web search, press warnings, Meta ads (key needed). Skipped sources say why. Shows when the next automatic scan runs |
+| Top bar, **bell** (`components/alerts-bell.tsx`) | Unread count and the latest alerts (medium/high finds, confirmed takedowns, scans that found something). Refreshes every 15 seconds, on live events, and when a scan finishes. Opening an alert marks it read |
+| **Settings** `/settings` | Scan schedule per brand (off, hourly ... every 3 days), each source on/off with the key it needs and whether it is set, alert channels (in-app, email, Slack/webhook) with **Send a test alert**, and whether filing is in dry-run |
+| Notice actions (`components/notice-actions.tsx`) | An approved notice offers **File (dry run)**, **I filed it myself** (opens the recipient's form, records a reference, starts a real clock) and, only when the server allows it, **Send by email**. The server decides what is allowed: `GET /api/health` reports `dry_run` and `email_ready` |
+| Notice card | **Evidence pack** download (zip: notice text, `evidence.json` with hashes and verdict, screenshot, page source, the letter) |
+| Case, **Clock** tab | "Are the reported sites still up?" with **Check now**. A site that is gone is recorded as removed automatically for notices that were really filed. Clock rows are labelled **real** or **dry run** |
+| Threats | Telegram and WhatsApp finds are labelled and tracked like websites; their evidence shows the public Telegram preview and any WhatsApp groups |
+
+Notice status `filed` (by hand or email) sits beside `filed_dry_run`. The Approvals "Filed" tab, the stats and the report count both.
+Sample-data mode (`src/mock/`) implements all of this (seeded alerts, source toggles, filing by hand, a simulated takedown check); the evidence pack and email sending are real-backend only, and say so.
+
 ## 10. Testing and verification
 
 There is no unit-test runner yet. Verification used so far:

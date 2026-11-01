@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type Notice } from '@/api'
+import { api, type FileMode, type Notice } from '@/api'
 import { useApprover } from '@/ui'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,11 +16,14 @@ import {
  * drafted -> approve / reject, approved -> file (dry run), filed -> log first response / removed.
  * The approver is the global "Acting as" name from the top-right account menu.
  */
-export function NoticeActions({ n }: { n: Pick<Notice, 'id' | 'case_id' | 'status'> }) {
+export function NoticeActions({ n }: { n: Pick<Notice, 'id' | 'case_id' | 'status' | 'method' | 'recipient' | 'recipient_verified'> }) {
   const qc = useQueryClient()
   const [approver] = useApprover()
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  const [byHand, setByHand] = useState(false)
+  const [ref, setRef] = useState('')
+  const health = useQuery({ queryKey: ['health'], queryFn: api.health, staleTime: 60_000 })
   const who = approver.trim()
   const canAct = who.length >= 2
 
@@ -42,7 +46,18 @@ export function NoticeActions({ n }: { n: Pick<Notice, 'id' | 'case_id' | 'statu
     },
     onError: fail,
   })
-  const file = useMutation({ mutationFn: () => api.file(n.id), onSuccess: () => done('Filed (dry run). Takedown clock started'), onError: fail })
+  const file = useMutation({
+    mutationFn: ({ mode, reference }: { mode: FileMode; reference?: string }) => api.file(n.id, mode, reference),
+    onSuccess: (_r, v) => {
+      setByHand(false)
+      setRef('')
+      done(v.mode === 'dry_run' ? 'Filed (dry run). Nothing was sent. Takedown clock started' : v.mode === 'manual' ? 'Recorded as filed. The takedown clock is running' : 'Sent by email. The takedown clock is running')
+    },
+    onError: fail,
+  })
+  const dryRun = health.data?.dry_run ?? true
+  const canEmail = !!health.data && !health.data.dry_run && health.data.email_ready && n.method === 'email' && !!n.recipient_verified
+  const isFiled = n.status === 'filed_dry_run' || n.status === 'filed'
   const clock = useMutation({
     mutationFn: (ev: 'first_response' | 'removed') => api.clock(n.id, ev, 'Logged by operator (simulated)'),
     onSuccess: () => done('Clock updated'),
@@ -63,11 +78,17 @@ export function NoticeActions({ n }: { n: Pick<Notice, 'id' | 'case_id' | 'statu
         </>
       ) : null}
       {n.status === 'approved' ? (
-        <Button size="sm" disabled={file.isPending} onClick={() => file.mutate()}>
-          File (dry run) and start clock
-        </Button>
+        <>
+          <Button size="sm" variant={dryRun ? 'default' : 'outline'} disabled={file.isPending} onClick={() => file.mutate({ mode: 'dry_run' })}>
+            File (dry run)
+          </Button>
+          <Button size="sm" variant={dryRun ? 'outline' : 'default'} disabled={file.isPending} onClick={() => setByHand(true)}>
+            I filed it myself
+          </Button>
+          {canEmail ? <Button size="sm" disabled={file.isPending} onClick={() => file.mutate({ mode: 'email' })}>Send by email</Button> : null}
+        </>
       ) : null}
-      {n.status === 'filed_dry_run' ? (
+      {isFiled ? (
         <>
           <Button size="sm" variant="outline" disabled={clock.isPending} onClick={() => clock.mutate('first_response')}>
             Log first response
@@ -75,9 +96,33 @@ export function NoticeActions({ n }: { n: Pick<Notice, 'id' | 'case_id' | 'statu
           <Button size="sm" disabled={clock.isPending} onClick={() => clock.mutate('removed')}>
             Mark removed
           </Button>
-          <span className="text-xs text-muted-foreground">Simulated while HAUL16 runs dry.</span>
+          {n.status === 'filed_dry_run' ? <span className="text-xs text-muted-foreground">Simulated: nothing was sent.</span> : <span className="text-xs text-muted-foreground">Real: logged against your actual filing.</span>}
         </>
       ) : null}
+
+      <Dialog open={byHand} onOpenChange={setByHand}>
+        <DialogContent>
+          <form onSubmit={(e) => { e.preventDefault(); file.mutate({ mode: 'manual', reference: ref.trim() || undefined }) }} className="grid gap-4">
+            <DialogHeader>
+              <DialogTitle>Record that you filed it</DialogTitle>
+              <DialogDescription>
+                Send the notice yourself, then record it here to start a real takedown clock. Download the evidence pack from the notice for the form or email.
+              </DialogDescription>
+            </DialogHeader>
+            {n.method !== 'email' && n.recipient.startsWith('http') ? (
+              <Button type="button" variant="outline" asChild className="justify-self-start"><a href={n.recipient} target="_blank" rel="noreferrer"><ExternalLink /> Open the recipient's form</a></Button>
+            ) : <p className="text-sm text-muted-foreground">Recipient: <span className="font-mono">{n.recipient}</span></p>}
+            <div className="grid gap-2">
+              <Label htmlFor={`ref-${n.id}`}>Reference <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Input id={`ref-${n.id}`} value={ref} onChange={(e) => setRef(e.target.value)} placeholder="Ticket number, or where you filed it" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setByHand(false)}>Cancel</Button>
+              <Button type="submit" disabled={file.isPending}>I filed it</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejecting} onOpenChange={setRejecting}>
         <DialogContent>

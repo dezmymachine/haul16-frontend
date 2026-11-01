@@ -4,6 +4,7 @@ import { api, type Threat } from '@/api'
 import { ConfidenceChip, Empty, ErrorNote, Reason, fmtTime } from '@/ui'
 import { Page } from '@/components/page'
 import { PageHeader } from '@/components/page-header'
+import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -80,6 +81,7 @@ function ThreatRow({ t }: { t: Threat }) {
     <TableRow>
       <TableCell>
         <Link to="/threats/$threatId" params={{ threatId: t.id }} className="font-mono text-sm">{t.hostname}</Link>
+        {t.hostname.startsWith('t.me/') ? <Badge variant="outline" className="ml-2">Telegram</Badge> : t.hostname.startsWith('chat.whatsapp.com/') ? <Badge variant="outline" className="ml-2">WhatsApp</Badge> : null}
         {t.title ? <div className="max-w-xs truncate text-xs text-muted-foreground">{t.title}</div> : null}
       </TableCell>
       <TableCell><ConfidenceChip value={t.status === 'queued' ? 'pending' : t.confidence} /></TableCell>

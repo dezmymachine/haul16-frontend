@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ScanSources } from '@/components/scan-sources'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -65,14 +66,14 @@ function HomePage() {
               { icon: ShieldAlert, label: 'Threats tracked', value: c?.threats, to: '/threats' },
               { icon: FolderOpen, label: 'Open cases', value: c?.open_cases, to: '/cases' },
               { icon: ClipboardCheck, label: 'Awaiting approval', value: c?.notices_awaiting_approval, to: '/approvals', hot: !!c?.notices_awaiting_approval },
-              { icon: Send, label: 'Filed (dry run)', value: c?.notices_filed, to: '/approvals?status=filed_dry_run' },
+              { icon: Send, label: 'Filed', value: c?.notices_filed, to: '/approvals?status=filed_dry_run' },
               { icon: Hourglass, label: 'Capture queue', value: stats.data?.queue },
             ]}
           />
           <ThreatMix by={c?.by_confidence ?? {}} total={c?.threats ?? 0} />
         </div>
         <div className="grid content-start gap-6">
-          <SweepCard brandId={brand.id} sweep={s.sweep} />
+          <SweepCard brandId={brand.id} sweep={s.sweep} patrol={s.patrol} />
           <SubmitPanel />
           {brand.fictional ? <DemoPanel /> : null}
         </div>
@@ -144,8 +145,8 @@ function NextStepCard({ action }: { action: NextAction }) {
   )
 }
 
-/** Look-alike domain sweep: typo, homoglyph, lure-word and TLD variants of the brand's domain, checked over DNS. */
-function SweepCard({ brandId, sweep }: { brandId: string; sweep: SweepStatus }) {
+/** The scan: every place HAUL16 looks (domains, certificate history, Telegram, search, ads), source by source. */
+function SweepCard({ brandId, sweep, patrol }: { brandId: string; sweep: SweepStatus; patrol?: { hours: number; next_at: string | null } }) {
   const qc = useQueryClient()
   const run = useMutation({
     mutationFn: () => api.sweep(brandId),
@@ -153,32 +154,36 @@ function SweepCard({ brandId, sweep }: { brandId: string; sweep: SweepStatus }) 
     onError: (e: Error) => toast.error(e.message),
   })
   const running = sweep.status === 'running'
+  // When a scan ends, what it found (alerts, threats, counts) should show up at once, not on the next poll.
+  useEffect(() => {
+    if (sweep.status === 'done') for (const k of ['alerts', 'stats', 'threats']) qc.invalidateQueries({ queryKey: [k] })
+  }, [sweep.status, sweep.updated_at, qc])
   const pct = sweep.generated ? Math.round(((sweep.checked ?? 0) / sweep.generated) * 100) : 0
+  const sources = sweep.sources ?? {}
+  const skipped = Object.values(sources).filter((s) => s.status === 'skipped').length
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Scan for look-alikes</CardTitle>
-        <CardDescription>Checks which typo, look-alike and lure-word versions of your domain already exist.</CardDescription>
+        <CardTitle>Scan</CardTitle>
+        <CardDescription>
+          Looks for look-alike domains, new certificates, Telegram accounts, fake pages and press warnings.
+          {patrol && patrol.hours > 0 && patrol.next_at ? ` Next automatic scan ${new Date(patrol.next_at).toLocaleString()}.` : patrol?.hours === 0 ? ' Automatic scans are off.' : ''}
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        {running ? (
-          <>
-            <div className="h-2 overflow-hidden rounded-sm bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} /></div>
-            <p className="text-sm text-muted-foreground">
-              {sweep.phase === 'generating' || !sweep.generated ? 'Preparing variants…' : `Checked ${sweep.checked} of ${sweep.generated} variants · ${sweep.registered} exist`}
-            </p>
-          </>
-        ) : sweep.status === 'done' ? (
+        {running && sweep.generated ? <div className="h-2 overflow-hidden rounded-sm bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} /></div> : null}
+        {sweep.status === 'done' ? (
           <p className="text-sm">
-            Last scan: <strong>{sweep.registered}</strong> of {sweep.generated} variants exist; <strong>{sweep.queued}</strong> sent for analysis
-            {sweep.skipped_known ? `, ${sweep.skipped_known} already tracked` : ''}.
+            Last scan sent <strong>{sweep.queued}</strong> thing{sweep.queued === 1 ? '' : 's'} for analysis{sweep.skipped_known ? `, ${sweep.skipped_known} already tracked` : ''}.
             {sweep.updated_at ? <span className="text-muted-foreground"> {new Date(sweep.updated_at).toLocaleString()}</span> : null}
           </p>
         ) : sweep.status === 'failed' ? (
           <p className="text-sm text-destructive">The last scan failed. {sweep.error}</p>
-        ) : (
+        ) : sweep.status === 'none' ? (
           <p className="text-sm text-muted-foreground">No scan has run yet.</p>
-        )}
+        ) : null}
+        <ScanSources sources={sources} />
+        {skipped ? <p className="text-xs text-muted-foreground">{skipped} source{skipped === 1 ? ' was' : 's were'} skipped. Add the key it names on the server, or see <Link to="/settings">Settings</Link>.</p> : null}
         <Button variant="outline" className="justify-self-start" disabled={running || run.isPending} onClick={() => run.mutate()}>
           {running ? 'Scanning…' : sweep.status === 'none' ? 'Scan now' : 'Scan again'}
         </Button>

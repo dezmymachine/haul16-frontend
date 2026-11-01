@@ -20,6 +20,8 @@ export const REASON_LABEL: Record<string, string> = {
   brand_name_in_domain: 'Brand name in domain',
   free_hosting_subdomain: 'Free hosting subdomain',
   page_unreachable: 'Page unreachable',
+  handle_lookalike: 'Look-alike account name',
+  social_link_submitted: 'Account reported by a person',
 }
 
 export const CHANNEL_LABEL: Record<string, string> = {
@@ -42,11 +44,12 @@ const STATUS_VARIANT: Record<NoticeStatus, 'warn' | 'default' | 'ok' | 'secondar
   drafted: 'warn',
   approved: 'default',
   filed_dry_run: 'ok',
+  filed: 'ok',
   rejected: 'secondary',
 }
 
 export function StatusChip({ value }: { value: string }) {
-  const label = value === 'filed_dry_run' ? 'filed (dry run)' : value
+  const label = value === 'filed_dry_run' ? 'filed (dry run)' : value === 'filed' ? 'filed' : value
   const variant = STATUS_VARIANT[value as NoticeStatus] ?? 'outline'
   return <Badge variant={variant}>{label}</Badge>
 }

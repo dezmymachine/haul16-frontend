@@ -4,13 +4,24 @@
 import { ApiError, type CaseDetail, type CaseSummary, type Notice, type NoticeStatus, type Report, type Stats, type Threat } from '@/api'
 import type { LiveEvent } from '@/live'
 import { handleBrandRoute, seedBrandState } from './brands'
+import { seedAlerts } from './data'
 import {
   BRAND, BRAND_ID, RULES_VERSION, draftNotices, hoursAgo, iso, makeSeed, mkCapture, mkEnrichment, mkNotice, mkVerdict, rid,
   type DB,
 } from './data'
 
 const STORE_KEY = 'haul16.demo.v2'
-const LIVE_STATUSES: NoticeStatus[] = ['drafted', 'approved', 'filed_dry_run', 'rejected']
+const LIVE_STATUSES: NoticeStatus[] = ['drafted', 'approved', 'filed_dry_run', 'filed', 'rejected']
+const isFiled = (s: string) => s === 'filed_dry_run' || s === 'filed'
+const SOURCES = [
+  ['dns_sweep', 'Look-alike domains', 'Variants of your domain that exist in DNS', null],
+  ['ct_history', 'Certificate history', 'Certificates issued this year containing your names (crt.sh)', null],
+  ['telegram_handles', 'Telegram accounts', "Look-alike channels and accounts on Telegram's public pages", null],
+  ['urlscan', 'urlscan.io', 'Recent public scans of domains containing your names', 'URLSCAN_API_KEY'],
+  ['web_search', 'Web search', 'Fake login and giveaway pages found by search', 'SEARCH_API_KEY'],
+  ['news_mentions', 'Press warnings', 'News naming your brand with scam wording, and domains it cites', 'SEARCH_API_KEY'],
+  ['meta_ads', 'Meta ads', 'Ads using your name from pages that are not yours', 'META_AD_LIBRARY_TOKEN'],
+] as const
 
 function load(): DB {
   try {
@@ -18,12 +29,13 @@ function load(): DB {
     if (raw) {
       const parsed = JSON.parse(raw) as DB
       parsed.brandState ??= seedBrandState()
+      parsed.alerts ??= seedAlerts()
       return parsed
     }
   } catch {
     /* storage blocked or corrupt: start from the seed */
   }
-  return { ...makeSeed(), brandState: seedBrandState() }
+  return { ...makeSeed(), brandState: seedBrandState(), alerts: seedAlerts() }
 }
 
 let db: DB = load()
@@ -88,7 +100,7 @@ function caseSummary(c: DB['cases'][number]): CaseSummary {
     max_score: ts.length ? Math.max(...ts.map((t) => t.score ?? 0)) : null,
     first_detected: ts.map((t) => t.detected_at).sort()[0] ?? c.opened_at,
     notice_count: caseNotices(c.id).length,
-    filed_count: caseNotices(c.id).filter((n) => n.status === 'filed_dry_run').length,
+    filed_count: caseNotices(c.id).filter((n) => isFiled(n.status)).length,
     removed_count: db.clock.filter((e) => e.case_id === c.id && e.event === 'removed').length,
   }
 }
@@ -122,7 +134,7 @@ function stats(): Stats {
   return {
     counts: {
       threats: db.threats.length, by_confidence: by, open_cases: db.cases.filter((c) => c.status === 'open').length,
-      notices_drafted: db.notices.length, notices_awaiting_approval: count('drafted'), notices_filed: count('filed_dry_run'),
+      notices_drafted: db.notices.length, notices_awaiting_approval: count('drafted'), notices_filed: count('filed_dry_run') + count('filed'),
     },
     ct: { ...ctSnapshot(), rate_now: rate },
     queue: db.threats.filter((t) => t.status === 'queued').length,
@@ -305,6 +317,14 @@ for (const t of db.threats.filter((x) => x.status === 'queued')) finishPipeline(
 
 // ---- request handling -----------------------------------------------------------
 
+/** Sample takedown detection: a site counts as taken down once a removal was logged against any notice about it. */
+function liveness(caseId: string) {
+  return db.threats.filter((t) => t.case_id === caseId && db.notices.some((n) => n.threat_id === t.id && isFiled(n.status))).map((t) => {
+    const gone = db.clock.some((e) => e.event === 'removed' && db.notices.find((n) => n.id === e.notice_id)?.threat_id === t.id)
+    return { threat_id: t.id, hostname: t.hostname, status: gone ? 'gone' : 'live', reason: gone ? 'the page returns HTTP 404' : 'HTTP 200', checked_at: iso(Date.now()) }
+  })
+}
+
 const need = <T,>(v: T | undefined | null, msg: string, status = 404): T => {
   if (v == null) throw new ApiError(status, msg)
   return v
@@ -344,8 +364,24 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
     if (method === 'POST' && (p === '/inject' || p === '/demo/clone')) throw new ApiError(409, 'Sample data only runs for the demo brand. Switch to it from the account menu.')
   }
 
+  if (seg[0] === 'sources' && method === 'PUT') {
+    const off = new Set(db.sourceOff ?? [])
+    if (body.enabled) off.delete(seg[1]); else off.add(seg[1])
+    db.sourceOff = [...off]
+    save()
+    const s = SOURCES.find((x) => x[0] === seg[1])
+    if (!s) throw new ApiError(404, 'No such source')
+    return { id: s[0], label: s[1], description: s[2], needs_key: s[3], configured: !s[3], enabled: body.enabled }
+  }
+
   if (method === 'GET') {
-    if (p === '/health') return { ok: true, dry_run: true, ct_enabled: true, demo: true }
+    if (p === '/health') return { ok: true, dry_run: true, email_ready: false, ct_enabled: true, demo: true, alert_channels: { webhook: false, email: false }, collectors: {} }
+    if (p === '/alerts') {
+      const items = scoped && scoped !== BRAND_ID ? [] : [...(db.alerts ?? [])].sort((a, b) => b.id - a.id)
+      return { unread: items.filter((a) => !a.read_at).length, items }
+    }
+    if (p === '/sources') return SOURCES.map(([id, label, description, key]) => ({ id, label, description, needs_key: key, configured: !key, enabled: !(db.sourceOff ?? []).includes(id) }))
+    if (seg[0] === 'cases' && seg[2] === 'liveness') return liveness(seg[1])
     if (p === '/brand') return BRAND
     if (p === '/stats') return stats()
     if (p === '/threats') {
@@ -402,16 +438,19 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
         db.audit.push({ ts: now, actor: who, action: 'notice_rejected', ref: n.id, detail: { reason: body.reason } })
       } else if (seg[2] === 'file') {
         if (n.status !== 'approved') throw new ApiError(409, 'A person must approve this notice before it is filed')
-        Object.assign(n, { status: 'filed_dry_run', filed_at: now })
-        db.clock.push({ id: db.clockSeq++, case_id: n.case_id, notice_id: n.id, channel: n.channel, event: 'filed', ts: now, simulated: 1, note: null })
-        db.audit.push({ ts: now, actor: n.approved_by ?? 'operator', action: 'notice_filed_dry_run', ref: n.id, detail: null })
+        const mode = String(body.mode ?? 'dry_run')
+        if (mode === 'email') throw new ApiError(409, 'Sending is switched off (dry run). Set HAUL16_DRY_RUN=0 on the server to send for real, or file it by hand.')
+        const real = mode === 'manual'
+        Object.assign(n, { status: real ? 'filed' : 'filed_dry_run', filed_at: now })
+        db.clock.push({ id: db.clockSeq++, case_id: n.case_id, notice_id: n.id, channel: n.channel, event: 'filed', ts: now, simulated: real ? 0 : 1, note: real ? (body.reference || 'Filed by hand by a person.') : null })
+        db.audit.push({ ts: now, actor: n.approved_by ?? 'operator', action: real ? 'notice_filed' : 'notice_filed_dry_run', ref: n.id, detail: { mode } })
         save()
         emit({ type: 'filed', notice_id: n.id, case_id: n.case_id, channel: n.channel })
         return n
       } else if (seg[2] === 'clock') {
-        if (n.status !== 'filed_dry_run') throw new ApiError(409, 'File the notice before logging a response')
+        if (!isFiled(n.status)) throw new ApiError(409, 'File the notice before logging a response')
         if (body.event !== 'first_response' && body.event !== 'removed') throw new ApiError(422, 'String should match pattern')
-        db.clock.push({ id: db.clockSeq++, case_id: n.case_id, notice_id: n.id, channel: n.channel, event: body.event, ts: now, simulated: 1, note: body.note ?? null })
+        db.clock.push({ id: db.clockSeq++, case_id: n.case_id, notice_id: n.id, channel: n.channel, event: body.event, ts: now, simulated: n.status === 'filed_dry_run' ? 1 : 0, note: body.note ?? null })
         db.audit.push({ ts: now, actor: 'operator', action: `clock_${body.event}`, ref: n.id, detail: null })
         save()
         return db.clock.filter((e) => e.case_id === n.case_id)
@@ -433,8 +472,20 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
       if (dup) return { threat_id: dup.id, duplicate: true, host: fx.host }
       return { threat_id: queueThreat(fx.host, `http://127.0.0.1:8000/demo-sites/${body.variant}/`, 'demo_fixture', String(body.variant)).id, duplicate: false, host: fx.host }
     }
+    if (p === '/alerts/read') {
+      const ids: number[] | null = body.ids ?? null
+      for (const a of db.alerts ?? []) if (!a.read_at && (!ids || ids.includes(a.id))) a.read_at = now
+      save()
+      return { marked: 0, unread: (db.alerts ?? []).filter((a) => !a.read_at).length }
+    }
+    if (p === '/alerts/test') {
+      const a = { id: Math.max(0, ...(db.alerts ?? []).map((x) => x.id)) + 1, brand_id: BRAND_ID, kind: 'test', severity: 'high' as const, title: 'Test alert from HAUL16', detail: 'If you can read this, this channel works.', href: '/home', created_at: now, read_at: null, delivered: {} }
+      ;(db.alerts ??= []).push(a)
+      save()
+      return { id: a.id, delivered: {}, channels: { webhook: false, email: false } }
+    }
     if (p === '/demo/reset') {
-      db = { ...makeSeed(), brandState: seedBrandState() }
+      db = { ...makeSeed(), brandState: seedBrandState(), alerts: seedAlerts() }
       save()
       return { ok: true }
     }

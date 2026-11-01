@@ -15,6 +15,7 @@ import { Route as BrandRouteImport } from './routes/brand'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ReportRouteImport } from './routes/report'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as WatchRouteImport } from './routes/watch'
 import { Route as CasesIndexRouteImport } from './routes/cases.index'
@@ -50,6 +51,11 @@ const LoginRoute = LoginRouteImport.update({
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupRoute = SetupRouteImport.update({
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/watch': typeof WatchRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByTo {
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/watch': typeof WatchRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/watch': typeof WatchRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
@@ -135,6 +144,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/login'
     | '/report'
+    | '/settings'
     | '/setup'
     | '/watch'
     | '/cases/$caseId'
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/login'
     | '/report'
+    | '/settings'
     | '/setup'
     | '/watch'
     | '/cases/$caseId'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/login'
     | '/report'
+    | '/settings'
     | '/setup'
     | '/watch'
     | '/cases/$caseId'
@@ -178,6 +190,7 @@ export interface RootRouteChildren {
   HomeRoute: typeof HomeRoute
   LoginRoute: typeof LoginRoute
   ReportRoute: typeof ReportRoute
+  SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
   WatchRoute: typeof WatchRoute
   CasesCaseIdRoute: typeof CasesCaseIdRoute
@@ -228,6 +241,13 @@ declare module '@tanstack/react-router' {
       path: '/report'
       fullPath: '/report'
       preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup': {
@@ -282,6 +302,7 @@ const rootRouteChildren: RootRouteChildren = {
   HomeRoute: HomeRoute,
   LoginRoute: LoginRoute,
   ReportRoute: ReportRoute,
+  SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
   WatchRoute: WatchRoute,
   CasesCaseIdRoute: CasesCaseIdRoute,

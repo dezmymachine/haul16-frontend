@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Database, FlaskConical } from 'lucide-react'
+import { AlertsBell } from '@/components/alerts-bell'
 import { demoEnabled } from '@/demo'
 import { FlowMenu } from '@/components/flow-menu'
 import { UserMenu } from '@/components/user-menu'
@@ -26,6 +27,7 @@ export function Page({ crumbs, children }: { crumbs: Crumb[]; children: ReactNod
             <Database /> <span className="max-md:hidden">Sample data</span>
           </Badge>
         ) : null}
+        <AlertsBell />
         <FlowMenu />
         <UserMenu />
       </header>

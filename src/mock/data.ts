@@ -14,6 +14,20 @@ export interface DB {
   clock: ClockEvent[]
   audit: AuditRow[]
   clockSeq: number
+  alerts?: MockAlert[]
+  sourceOff?: string[]
+}
+
+export interface MockAlert { id: number; brand_id: string; kind: string; severity: 'info' | 'medium' | 'high'; title: string; detail: string | null; href: string | null; created_at: string; read_at: string | null; delivered: Record<string, string> }
+
+export function seedAlerts(): MockAlert[] {
+  const a = (id: number, severity: MockAlert['severity'], kind: string, title: string, detail: string, href: string, h: number, read = false): MockAlert =>
+    ({ id, brand_id: 'brand_demo', kind, severity, title, detail, href, created_at: hoursAgo(h), read_at: read ? hoursAgo(h - 0.5) : null, delivered: {} })
+  return [
+    a(3, 'info', 'scan_done', 'Scan found 2 new things to analyse', '1 from look-alike domains, 1 from telegram accounts', '/threats', 1.5),
+    a(2, 'medium', 'finding', 'Medium-confidence look-alike: nkwaex-wallet.app', 'Score 65. Opened a case. 5 notice(s) drafted for approval.', '/cases/case_4be07d92a1', 5),
+    a(1, 'high', 'finding', 'High-confidence look-alike: nkwaexchange-gh.xyz', 'Score 100. Joined case via phone:0245550142. 3 notice(s) drafted for approval.', '/cases/case_9f3a21c7d4', 50, true),
+  ]
 }
 
 export const BRAND: BrandRegister = {

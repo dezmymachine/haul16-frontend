@@ -1,13 +1,24 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Download } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { demoEnabled } from '@/demo'
 import type { Notice } from '@/api'
 import { CHANNEL_LABEL, Mono, StatusChip, fmtTime } from '@/ui'
 import { NoticeActions } from '@/components/notice-actions'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 /** One takedown notice: recipient, subject, readable text, evidence hashes and the next action. */
+function PackButton({ id }: { id: string }) {
+  const demo = useQuery({ queryKey: ['demo-mode'], queryFn: demoEnabled, staleTime: Infinity }).data
+  if (demo)
+    return <Button size="sm" variant="ghost" onClick={() => toast.message('Evidence packs are built by the real backend. They are not available in sample-data mode.')}><Download /> Evidence pack</Button>
+  return <Button size="sm" variant="ghost" asChild><a href={`/api/notices/${id}/pack`} download><Download /> Evidence pack</a></Button>
+}
+
 export function NoticeCard({ n, host, caseLink }: { n: Notice; host?: string | null; caseLink?: { id: string; title: string } }) {
   return (
     <Card className={'gap-3 py-4'}>
@@ -48,8 +59,9 @@ export function NoticeCard({ n, host, caseLink }: { n: Notice; host?: string | n
           ) : null}
         </div>
       </CardContent>
-      <CardFooter className="px-4">
+      <CardFooter className="flex-wrap justify-between gap-2 px-4">
         <NoticeActions n={n} />
+        <PackButton id={n.id} />
       </CardFooter>
     </Card>
   )

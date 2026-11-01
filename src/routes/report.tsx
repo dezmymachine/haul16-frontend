@@ -65,7 +65,7 @@ function ReportPage() {
             <Stat label="Threats detected" value={r.threats_detected}
               sub={Object.entries(r.threats_by_confidence).map(([k, v]) => `${v} ${k}`).join(' · ') || 'none'} />
             <Stat label="Cases opened" value={r.cases_opened} />
-            <Stat label="Notices filed (dry run)" value={r.notices.filed_dry_run} sub={`${r.notices.approved} approved, not yet filed`} />
+            <Stat label="Notices filed" value={r.notices.filed_dry_run + (r.notices.filed ?? 0)} sub={`${r.notices.approved} approved, not yet filed`} />
             <Stat label="Rejected by reviewer" value={r.notices.rejected} />
           </section>
 

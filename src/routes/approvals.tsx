@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 const TABS: { value: NoticeStatus; label: string; empty: string }[] = [
   { value: 'drafted', label: 'Awaiting approval', empty: 'Nothing waiting. New notices are drafted automatically when a case opens.' },
   { value: 'approved', label: 'Ready to file', empty: 'No approved notices waiting to be filed.' },
-  { value: 'filed_dry_run', label: 'Filed (dry run)', empty: 'Nothing filed yet. Approve a notice, then file it to start the takedown clock.' },
+  { value: 'filed_dry_run', label: 'Filed', empty: 'Nothing filed yet. Approve a notice, then file it to start the takedown clock.' },
   { value: 'rejected', label: 'Rejected', empty: 'No rejected notices.' },
 ]
 
@@ -30,9 +30,10 @@ function ApprovalsPage() {
   const [approver] = useApprover()
   const q = useQuery({ queryKey: ['notices'], queryFn: () => api.notices(), refetchInterval: 15_000 })
   const all = q.data ?? []
-  const count = (s: NoticeStatus) => all.filter((n) => n.status === s).length
+  const isIn = (n: { status: NoticeStatus }, s: NoticeStatus) => (s === 'filed_dry_run' ? n.status === 'filed_dry_run' || n.status === 'filed' : n.status === s)
+  const count = (s: NoticeStatus) => all.filter((n) => isIn(n, s)).length
   const current = TABS.find((t) => t.value === status)!
-  const rows = all.filter((n) => n.status === status)
+  const rows = all.filter((n) => isIn(n, status))
 
   return (
     <Page crumbs={[{ label: 'Respond' }, { label: 'Approvals' }]}>

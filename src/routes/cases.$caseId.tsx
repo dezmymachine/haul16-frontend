@@ -1,7 +1,8 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight } from 'lucide-react'
-import { api, type CaseDetail, type ClockEvent } from '@/api'
+import { toast } from 'sonner'
+import { api, type CaseDetail, type ClockEvent, type LivenessItem } from '@/api'
 import {
   Ago, CHANNEL_LABEL, ConfidenceChip, Empty, ErrorNote, Mono, Stat, fmtDuration, fmtTime, useNow,
 } from '@/ui'
@@ -41,7 +42,7 @@ function CasePage() {
 
   const awaiting = c.notices.filter((n) => n.status === 'drafted').length
   const ready = c.notices.filter((n) => n.status === 'approved').length
-  const filed = c.notices.filter((n) => n.status === 'filed_dry_run').length
+  const filed = c.notices.filter((n) => n.status === 'filed_dry_run' || n.status === 'filed').length
   const removed = c.clock.filter((e) => e.event === 'removed').length
 
   return (
@@ -67,7 +68,7 @@ function CasePage() {
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Linked threats" value={c.threats.length} />
         <Stat label="Awaiting approval" value={awaiting} tone={awaiting ? 'warn' : undefined} />
-        <Stat label="Filed (dry run)" value={filed} />
+        <Stat label="Filed" value={filed} />
         <Stat label="Removals logged" value={removed} tone={removed ? 'good' : undefined} />
       </section>
 
@@ -189,6 +190,44 @@ function Notices({ c }: { c: CaseDetail }) {
   )
 }
 
+const LIVE_BADGE: Record<LivenessItem['status'], 'high' | 'ok' | 'secondary'> = { live: 'high', gone: 'ok', unknown: 'secondary' }
+const LIVE_TEXT: Record<LivenessItem['status'], string> = { live: 'still up', gone: 'taken down', unknown: 'unclear' }
+
+/** Is each reported site still up? Re-checked every 30 minutes for filed notices, or on demand. */
+function SiteStatus({ caseId, hasFiled }: { caseId: string; hasFiled: boolean }) {
+  const qc = useQueryClient()
+  const q = useQuery({ queryKey: ['liveness', caseId], queryFn: () => api.liveness(caseId), enabled: hasFiled, refetchInterval: 60_000 })
+  const run = useMutation({
+    mutationFn: () => api.livenessRun(caseId),
+    onSuccess: (r) => {
+      qc.setQueryData(['liveness', caseId], r)
+      qc.invalidateQueries({ queryKey: ['case', caseId] })
+      qc.invalidateQueries({ queryKey: ['alerts'] })
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+  if (!hasFiled) return null
+  return (
+    <div className="grid gap-2 rounded-md border bg-muted/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-medium">Are the reported sites still up?</div>
+        <Button size="sm" variant="outline" disabled={run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Checking…' : 'Check now'}</Button>
+      </div>
+      {q.data?.length ? (
+        <ul className="grid gap-1 text-sm">
+          {q.data.map((s) => (
+            <li key={s.threat_id} className="flex flex-wrap items-center gap-2">
+              <Mono>{s.hostname}</Mono>
+              <Badge variant={LIVE_BADGE[s.status]}>{LIVE_TEXT[s.status]}</Badge>
+              <span className="text-xs text-muted-foreground">{s.reason} · checked {fmtTime(s.checked_at)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="text-xs text-muted-foreground">Not checked yet. HAUL16 checks every 30 minutes. For notices you really filed, a site that goes down is recorded as removed automatically.</p>}
+    </div>
+  )
+}
+
 function Clock({ c }: { c: CaseDetail }) {
   const now = useNow(1000)
   const detected = new Date(c.first_detected ?? c.opened_at).getTime()
@@ -205,6 +244,7 @@ function Clock({ c }: { c: CaseDetail }) {
         <CardDescription>Per channel: detected → filed → first response → removed. Times after filing are simulated and labelled.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
+        <SiteStatus caseId={c.id} hasFiled={filed.length > 0} />
         {!filed.length ? (
           <Empty>The clock starts when the first approved notice is filed.</Empty>
         ) : (
@@ -233,7 +273,7 @@ function Clock({ c }: { c: CaseDetail }) {
                 <div className="text-right">
                   <div className={cn('text-lg font-semibold tabular-nums', x ? 'text-emerald-700' : 'text-signal')}>{fmtDuration(end - detected)}</div>
                   <div className="text-xs text-muted-foreground">{x ? 'detected → removed' : 'and counting'}</div>
-                  {f?.simulated ? <Badge variant="warn">dry run</Badge> : null}
+                  {f ? (f.simulated ? <Badge variant="warn">dry run</Badge> : <Badge variant="ok">real</Badge>) : null}
                 </div>
               </div>
             )

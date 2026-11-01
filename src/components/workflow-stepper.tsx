@@ -13,7 +13,7 @@ export function threatReached(t: Threat) {
 /** Index of the last completed step for a whole case. */
 export function caseReached(c: Pick<CaseDetail, 'notices' | 'clock'>) {
   if (c.clock.some((e) => e.event === 'removed')) return 5
-  if (c.notices.some((n) => n.status === 'filed_dry_run')) return 4
+  if (c.notices.some((n) => n.status === 'filed_dry_run' || n.status === 'filed')) return 4
   if (c.notices.some((n) => n.status === 'approved')) return 3
   return 2
 }

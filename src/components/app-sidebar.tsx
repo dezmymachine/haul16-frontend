@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Building2, ClipboardCheck, FileBarChart, FolderOpen, Radar, ShieldAlert } from 'lucide-react'
+import { Building2, ClipboardCheck, FileBarChart, FolderOpen, Radar, Settings, ShieldAlert } from 'lucide-react'
 import { api } from '@/api'
 import { useConnected, useCt } from '@/live'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,7 @@ const NAV = [
     items: [
       { to: '/report', title: 'Report', icon: FileBarChart },
       { to: '/brand', title: 'Brand', icon: Building2 },
+      { to: '/settings', title: 'Settings', icon: Settings },
     ],
   },
 ] as const

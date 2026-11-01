@@ -44,6 +44,7 @@ function handleEvent(qc: QueryClient, ev: LiveEvent) {
   qc.setQueryData<FeedItem[]>(FEED_KEY, (old = []) => [item, ...old].slice(0, 80))
   // Refresh whatever the event changed.
   qc.invalidateQueries({ queryKey: ['stats'] })
+  if (ev.type === 'scored' || ev.type === 'filed') qc.invalidateQueries({ queryKey: ['alerts'] })
   if (ev.type === 'scored' || ev.type === 'filed') qc.invalidateQueries({ queryKey: ['notices'] })
   if (ev.type === 'scored' || ev.type === 'hit') qc.invalidateQueries({ queryKey: ['threats'] })
   if (ev.type === 'scored' && ev.case_id) {

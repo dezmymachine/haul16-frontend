@@ -83,7 +83,9 @@ export function ThreatEvidence({ t }: { t: Threat }) {
             ['Phones on page', ids.phones?.length ? <Mono>{ids.phones.join(', ')}</Mono> : <None />],
             ['Wallets', wallets.length ? <Mono>{wallets.join(', ')}</Mono> : <None />],
             ['Telegram / WhatsApp', social || <None />],
-            [
+            ...(enr?.telegram ? [['Telegram account', <>{enr.telegram.title} <span className="text-xs text-muted-foreground">· {enr.telegram.kind}{enr.telegram.audience ? `, ${enr.telegram.audience.toLocaleString()} ${enr.telegram.kind === 'channel' ? 'subscribers' : 'members'}` : ''}{enr.telegram.bot ? ', bot' : ''}</span>{enr.telegram.description ? <div className="text-xs text-muted-foreground">{enr.telegram.description}</div> : null}</>] as [string, ReactNode]] : []),
+            ...(enr?.whatsapp_groups?.length ? [['WhatsApp groups', <>{enr.whatsapp_groups.map((g) => <div key={g.code}>{g.name} <span className="font-mono text-xs text-muted-foreground">{g.url}</span></div>)}</>] as [string, ReactNode]] : []),
+            ...(enr?.platform ? [] : [[
               'Registrar',
               enr?.registration?.registrar ? (
                 <>
@@ -109,7 +111,7 @@ export function ThreatEvidence({ t }: { t: Threat }) {
               ) : (
                 <span className="text-muted-foreground">{enr?.ips?.length ? enr.ips.join(', ') : 'unknown'}</span>
               ),
-            ],
+            ]] as [string, ReactNode][]),
           ]}
         />
         {cap?.errors?.length ? (

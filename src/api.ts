@@ -42,6 +42,9 @@ export interface Enrichment {
   registration?: { domain: string; registrar?: string; registrar_abuse_email?: string; created?: string; rdap_status?: number }
   hosting?: { ip: string; network?: string; country?: string; host_abuse_email?: string; rdap_status?: number }
   error?: string
+  platform?: string
+  telegram?: { handle: string; title: string; description: string | null; audience: number | null; kind: string; image?: string | null; bot?: boolean }
+  whatsapp_groups?: { code: string; url: string; name: string; image?: string | null }[]
 }
 
 export interface Threat {
@@ -79,7 +82,7 @@ export interface CaseSummary {
   removed_count: number
 }
 
-export type NoticeStatus = 'drafted' | 'approved' | 'filed_dry_run' | 'rejected'
+export type NoticeStatus = 'drafted' | 'approved' | 'filed_dry_run' | 'filed' | 'rejected'
 
 export interface Notice {
   id: string
@@ -210,6 +213,7 @@ export interface BrandSummary {
   authorisation_letter_ref: string | null
   authorisation_letter_sha256: string | null
   seed_terms: string[]
+  patrol_hours?: number
   active_version: number | null
   is_active: boolean
   created_at: string
@@ -304,7 +308,22 @@ export interface NextAction {
   count?: number
 }
 
+export interface ScanSource {
+  label: string
+  status: 'pending' | 'running' | 'ok' | 'skipped' | 'error'
+  reason?: string
+  found?: number
+  queued?: number
+  already_tracked?: number
+  checked?: number
+  existing?: number
+  generated?: number
+  registered?: number
+  articles?: number
+}
+
 export interface SweepStatus {
+  sources?: Record<string, ScanSource>
   status: 'none' | 'running' | 'done' | 'failed'
   phase?: string
   generated?: number
@@ -323,8 +342,49 @@ export interface SetupState {
   steps: Record<string, { done: boolean; running?: boolean; count?: number }>
   next_action: NextAction
   sweep: SweepStatus
+  patrol?: { hours: number; next_at: string | null }
   counts: { threats: number; awaiting: number; approved: number }
 }
+
+export interface SourceInfo {
+  id: string
+  label: string
+  description: string
+  needs_key: string | null
+  configured: boolean
+  enabled: boolean
+}
+
+export interface AlertItem {
+  id: number
+  brand_id: string
+  kind: string
+  severity: 'info' | 'medium' | 'high'
+  title: string
+  detail: string | null
+  href: string | null
+  created_at: string
+  read_at: string | null
+  delivered: Record<string, string>
+}
+
+export interface Health {
+  ok: boolean
+  dry_run: boolean
+  email_ready: boolean
+  alert_channels?: { webhook: boolean; email: boolean }
+  collectors?: Record<string, boolean>
+}
+
+export interface LivenessItem {
+  threat_id: string
+  hostname: string
+  status: 'live' | 'gone' | 'unknown'
+  reason: string
+  checked_at: string
+}
+
+export type FileMode = 'dry_run' | 'manual' | 'email'
 
 export interface BrandInput {
   display_name: string
@@ -386,7 +446,15 @@ export const api = {
   approve: (id: string, approver: string) => post<Notice>(`/api/notices/${id}/approve`, { approver }),
   reject: (id: string, approver: string, reason: string) =>
     post<Notice>(`/api/notices/${id}/reject`, { approver, reason }),
-  file: (id: string) => post<Notice>(`/api/notices/${id}/file`),
+  file: (id: string, mode: FileMode = 'dry_run', reference?: string) => post<Notice>(`/api/notices/${id}/file`, { mode, reference: reference || null }),
+  health: () => req<Health>('/api/health'),
+  sources: () => req<SourceInfo[]>('/api/sources'),
+  sourceToggle: (id: string, enabled: boolean) => req<SourceInfo>(`/api/sources/${id}`, { method: 'PUT', body: JSON.stringify({ enabled }) }),
+  alerts: () => req<{ unread: number; items: AlertItem[] }>('/api/alerts'),
+  alertsRead: (ids?: number[]) => post<{ marked: number; unread: number }>('/api/alerts/read', { ids: ids ?? null }),
+  alertTest: () => post<{ delivered: Record<string, string>; channels: { webhook: boolean; email: boolean } }>('/api/alerts/test'),
+  liveness: (caseId: string) => req<LivenessItem[]>(`/api/cases/${caseId}/liveness`),
+  livenessRun: (caseId: string) => post<LivenessItem[]>(`/api/cases/${caseId}/liveness`),
   clock: (id: string, event: 'first_response' | 'removed', note?: string) =>
     post<ClockEvent[]>(`/api/notices/${id}/clock`, { event, note }),
   inject: (url: string, as_host?: string) =>
@@ -403,7 +471,7 @@ export const api = {
   sweep: (id: string) => post<SweepStatus>(`/api/brands/${id}/sweep`),
   sweepStatus: (id: string) => req<SweepStatus>(`/api/brands/${id}/sweep/status`),
   brandDelete: (id: string) => req<{ deleted: string }>(`/api/brands/${id}`, { method: 'DELETE' }),
-  brandPatch: (id: string, body: { seed_terms: string[] }) => req<BrandSummary>(`/api/brands/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  brandPatch: (id: string, body: { seed_terms?: string[]; patrol_hours?: number }) => req<BrandSummary>(`/api/brands/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   brands: () => req<BrandSummary[]>('/api/brands'),
   brandCreate: (body: BrandInput) => post<BrandSummary & { verification: VerifyInstructions }>('/api/brands', body),
   brandGet: (id: string) => req<BrandSummary & { verification: VerifyInstructions; job: JobStatus | null }>(`/api/brands/${id}`),
