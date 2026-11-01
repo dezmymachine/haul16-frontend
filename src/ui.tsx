@@ -139,7 +139,7 @@ export function ErrorNote({ error }: { error: unknown }) {
   return (
     <Alert variant="destructive">
       <AlertCircle />
-      <AlertDescription>{error instanceof Error ? error.message : String(error)}</AlertDescription>
+      <AlertDescription className="[overflow-wrap:anywhere]">{error instanceof Error ? error.message : String(error)}</AlertDescription>
     </Alert>
   )
 }

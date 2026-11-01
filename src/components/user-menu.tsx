@@ -32,12 +32,12 @@ export function UserMenu() {
       <PopoverTrigger asChild>
         <button
           aria-label="Business account"
-          className="flex items-center gap-2 rounded-lg py-1 pr-2 pl-1 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="flex shrink-0 items-center gap-2 rounded-lg py-1 pr-1.5 pl-1 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           <Avatar className="size-9">
             <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">{initialsOf(business) || '…'}</AvatarFallback>
           </Avatar>
-          <span className="hidden text-sm font-semibold sm:block">{business}</span>
+          <span className="hidden max-w-[10rem] truncate text-sm font-semibold lg:block">{business}</span>
           <ChevronDown className="size-4 text-muted-foreground" />
         </button>
       </PopoverTrigger>

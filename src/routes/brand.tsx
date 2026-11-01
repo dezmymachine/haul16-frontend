@@ -25,9 +25,9 @@ export const Route = createFileRoute('/brand')({
 })
 
 const GROUPS: Record<string, { kinds: string[]; empty: string }> = {
-  identity: { kinds: ['legal_name', 'trading_name', 'registration_no', 'licence', 'regulator', 'incorporated', 'hq_address'], empty: 'No legal identity found yet. Add an OpenAI key so the profiler can read the About and Legal pages, or add these by hand later.' },
-  domains: { kinds: ['domain', 'dns', 'domain_registration'], empty: 'No domain records yet.' },
-  presence: { kinds: ['social', 'telegram', 'linkedin_profile', 'social_profile', 'app'], empty: 'No social accounts, channels or apps found. Add official links when you create the brand, or connect Apify for LinkedIn and social data.' },
+  identity: { kinds: ['legal_name', 'trading_name', 'registration_no', 'licence', 'regulator', 'incorporated', 'hq_address'], empty: 'No legal identity found yet. Add a Gemini API key so the profiler can read the About and Legal pages, or add these by hand later.' },
+  domains: { kinds: ['domain', 'subdomains', 'dns', 'domain_registration'], empty: 'No domain records yet.' },
+  presence: { kinds: ['social', 'telegram', 'linkedin_profile', 'social_profile', 'app'], empty: 'No social accounts, channels or apps found. Add official links when you create the brand, or add the LinkedIn page link. Firecrawl supplies LinkedIn company details once its enrichment is switched on.' },
   contact: { kinds: ['phone', 'email', 'wallet', 'bank_account', 'payment_instruction'], empty: 'No official phone numbers, emails or payment details found.' },
   press: { kinds: ['warning', 'news'], empty: 'No press found. Add a search API key to look for news and scam warnings that name the brand.' },
   sources: { kinds: ['source'], empty: 'No pages were read yet.' },

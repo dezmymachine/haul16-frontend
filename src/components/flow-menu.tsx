@@ -26,7 +26,7 @@ export function FlowMenu() {
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="no-print gap-2" aria-label="Takedown flow">
           <Scale className="text-primary" />
-          <span className="max-md:hidden">Takedown flow</span>
+          <span className="max-xl:hidden">Takedown flow</span>
           {awaiting ? <Badge variant="warn" className="px-1.5">{awaiting}</Badge> : null}
         </Button>
       </PopoverTrigger>

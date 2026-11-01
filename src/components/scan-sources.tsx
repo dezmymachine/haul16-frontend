@@ -29,7 +29,7 @@ export function ScanSources({ sources }: { sources: Record<string, ScanSource> }
           </span>
           <div className="min-w-0">
             <div className="text-sm font-medium">{s.label}</div>
-            {detail(s) ? <div className="text-xs text-muted-foreground">{detail(s)}</div> : null}
+            {detail(s) ? <div className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{detail(s)}</div> : null}
           </div>
         </li>
       ))}

@@ -15,21 +15,23 @@ export function Page({ crumbs, children }: { crumbs: Crumb[]; children: ReactNod
   const demo = useQuery({ queryKey: ['demo-mode'], queryFn: demoEnabled, staleTime: Infinity }).data
   return (
     <>
-      <header className="no-print sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
+      <header className="no-print sticky top-0 z-10 flex h-16 w-full min-w-0 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur sm:px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
         <div className="min-w-0 flex-1 overflow-hidden [&_li]:whitespace-nowrap [&_ol]:flex-nowrap [&_li:last-child]:truncate"><Crumbs items={crumbs} /></div>
-        <Badge variant="warn" className="gap-1.5 py-1" title="Nothing is sent to any registrar, host, platform, telco or regulator. A person approves every notice.">
-          <FlaskConical /> Dry run<span className="max-lg:hidden"> · nothing is sent</span>
-        </Badge>
-        {demo ? (
-          <Badge variant="secondary" className="gap-1.5 py-1" title="No backend is connected, so this view runs on built-in sample data (a fictional brand).">
-            <Database /> <span className="max-md:hidden">Sample data</span>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <Badge variant="warn" className="gap-1.5 py-1" title="Dry run: nothing is sent to any registrar, host, platform, telco or regulator. A person approves every notice.">
+            <FlaskConical /><span className="max-sm:hidden">Dry run</span><span className="max-xl:hidden"> · nothing is sent</span>
           </Badge>
-        ) : null}
-        <AlertsBell />
-        <FlowMenu />
-        <UserMenu />
+          {demo ? (
+            <Badge variant="secondary" className="gap-1.5 py-1 max-md:hidden" title="No backend is connected, so this view runs on built-in sample data (a fictional brand).">
+              <Database /> <span className="max-xl:hidden">Sample data</span>
+            </Badge>
+          ) : null}
+          <AlertsBell />
+          <FlowMenu />
+          <UserMenu />
+        </div>
       </header>
       <div className="mx-auto grid w-full max-w-[88rem] grid-cols-[minmax(0,1fr)] gap-6 p-4 md:p-8">
         {children}

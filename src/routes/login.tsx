@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Eye, EyeOff } from 'lucide-react'
 import { api } from '@/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ function LoginPage() {
   const qc = useQueryClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const login = useMutation({
     mutationFn: async () => {
@@ -54,7 +56,20 @@ function LoginPage() {
           </div>
           <div className="grid gap-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <div className="relative">
+              <Input id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" className="pr-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute inset-y-0 right-0 size-9 text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((v) => !v)}
+              >
+                {showPassword ? <EyeOff /> : <Eye />}
+              </Button>
+            </div>
           </div>
           {login.error ? <Alert variant="destructive"><AlertDescription>{(login.error as Error).message}</AlertDescription></Alert> : null}
           <Button type="submit" size="lg" disabled={login.isPending}>{login.isPending ? 'Signing in…' : 'Sign in'}</Button>

@@ -61,7 +61,7 @@ export function seedBrandState(): BrandState {
     ...['', '/about', '/contact', '/legal'].map((path) => fact(id, 'source', `${site}${path}`, { collector: 'website', verification: 'corroborated', label: path ? `Nkwa Exchange | ${path.slice(1)}` : 'Nkwa Exchange | Buy and sell digital assets', source_url: `${site}${path}`, confidence: 1 })),
   ]
   const steps: Record<string, StepState> = Object.fromEntries(STEPS.map((s) => [s, { status: 'ok' } as StepState]))
-  steps.linkedin = { status: 'skipped', reason: 'APIFY_TOKEN is not set (sample data)' }
+  steps.linkedin = { status: 'skipped', reason: 'no LinkedIn source configured: set FIRECRAWL_API_KEY (sample data)' }
   steps.news = { status: 'ok', news: 1, warnings: 1 }
   steps.website = { status: 'ok', pages: 4 }
   return {
@@ -258,10 +258,10 @@ function startProfile(bs: BrandState, b: BrandSummary, save: () => void) {
   const outcome: Record<string, StepState> = {
     inputs: { status: 'ok', facts: 1 + inputs.socials.length }, dns: { status: 'ok', records: 6 }, rdap: { status: 'ok', records: 1 },
     website: { status: 'ok', pages: 4, firecrawl: false }, assets: { status: 'ok', assets: 2 },
-    linkedin: { status: 'skipped', reason: 'APIFY_TOKEN is not set (sample data)' },
-    socials: { status: 'skipped', reason: 'no public Telegram handle found and no APIFY_SOCIAL_ACTOR configured (sample data)' },
+    linkedin: { status: 'skipped', reason: 'no LinkedIn source configured: set FIRECRAWL_API_KEY (sample data)' },
+    socials: { status: 'skipped', reason: 'no public Telegram handle found for this brand (sample data)' },
     news: { status: 'skipped', reason: 'SEARCH_API_KEY is not set (sample data)' },
-    dossier: { status: 'skipped', reason: "no API key set for LLM provider 'openai' (sample data)" },
+    dossier: { status: 'skipped', reason: "no API key set for LLM provider 'gemini' (sample data)" },
   }
   STEPS.forEach((name, i) => {
     setTimeout(() => { steps[name] = { status: 'running' }; }, i * 900)

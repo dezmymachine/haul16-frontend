@@ -59,8 +59,9 @@ function HomePage() {
 
       <NextStepCard action={s.next_action} />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="grid gap-6 md:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="@container min-w-0">
+         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 @2xl:grid-cols-[17rem_minmax(0,1fr)]">
           <MetricList
             items={[
               { icon: ShieldAlert, label: 'Threats tracked', value: c?.threats, to: '/threats' },
@@ -71,15 +72,16 @@ function HomePage() {
             ]}
           />
           <ThreatMix by={c?.by_confidence ?? {}} total={c?.threats ?? 0} />
+         </div>
         </div>
-        <div className="grid content-start gap-6">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-6">
           <SweepCard brandId={brand.id} sweep={s.sweep} patrol={s.patrol} />
           <SubmitPanel />
           {brand.fictional ? <DemoPanel /> : null}
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Card>
           <CardHeader>
             <CardTitle>Live activity</CardTitle>
@@ -178,7 +180,7 @@ function SweepCard({ brandId, sweep, patrol }: { brandId: string; sweep: SweepSt
             {sweep.updated_at ? <span className="text-muted-foreground"> {new Date(sweep.updated_at).toLocaleString()}</span> : null}
           </p>
         ) : sweep.status === 'failed' ? (
-          <p className="text-sm text-destructive">The last scan failed. {sweep.error}</p>
+          <p className="text-sm text-destructive [overflow-wrap:anywhere]">The last scan failed. {sweep.error}</p>
         ) : sweep.status === 'none' ? (
           <p className="text-sm text-muted-foreground">No scan has run yet.</p>
         ) : null}
@@ -232,7 +234,7 @@ function ThreatMix({ by, total }: { by: Record<string, number>; total: number })
   const pie = total ? rows.filter((r) => r.n) : [{ key: 'none', label: 'none', color: '#e6e4f2', n: 1 }]
   const cfg = Object.fromEntries(MIX.map((m) => [m.key, { label: m.label, color: m.color }])) satisfies ChartConfig
   return (
-    <Card>
+    <Card className="@container">
       <CardHeader>
         <CardTitle className="text-xl">Threat mix</CardTitle>
         <CardDescription>Verdicts across every site tracked</CardDescription>
@@ -240,7 +242,7 @@ function ThreatMix({ by, total }: { by: Record<string, number>; total: number })
           <Link to="/threats" className="text-sm font-semibold underline underline-offset-4">Open threats</Link>
         </CardAction>
       </CardHeader>
-      <CardContent className="grid items-center gap-6 sm:grid-cols-[14rem_1fr]">
+      <CardContent className="grid grid-cols-[minmax(0,1fr)] items-center gap-6 @md:grid-cols-[14rem_minmax(0,1fr)]">
         <div className="relative mx-auto size-56">
           <ChartContainer config={cfg} className="size-56">
             <PieChart>
