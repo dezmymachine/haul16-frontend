@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Eye, Plus, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Eye, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type ProfileFact } from '@/api'
 import { useBrands } from '@/brand'
@@ -9,6 +9,7 @@ import { Page } from '@/components/page'
 import { PageHeader } from '@/components/page-header'
 import { FactRow, VerificationBadge } from '@/components/fact-row'
 import { ProfileSteps } from '@/components/profile-steps'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -65,6 +66,15 @@ function BrandPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   })
+  const remove = useMutation({
+    mutationFn: () => api.brandDelete(id!),
+    onSuccess: () => {
+      toast.success('Brand removed')
+      localStorage.removeItem('haul16.brand')
+      qc.invalidateQueries()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
   const activate = useMutation({
     mutationFn: () => api.brandActivate(id!),
     onSuccess: () => {
@@ -79,7 +89,7 @@ function BrandPage() {
     return (
       <Page crumbs={[{ label: 'Insights' }, { label: 'Brand' }]}>
         <PageHeader title="Brand" description="HAUL16 protects one brand at a time. Add the first one to start." />
-        <Empty>No brand yet. <Button asChild size="sm"><Link to="/brands/new"><Plus /> Add a brand</Link></Button></Empty>
+        <Empty>No brand yet. <Button asChild size="sm"><Link to="/setup" search={{ new: true }}><Plus /> Add a brand</Link></Button></Empty>
       </Page>
     )
 
@@ -106,9 +116,22 @@ function BrandPage() {
         }
         actions={
           <>
-            <Button variant="outline" asChild><Link to="/brands/$brandId" params={{ brandId: b.id }}><ShieldCheck /> Verify and letter</Link></Button>
+            <Button variant="outline" asChild><Link to="/setup" search={{ step: 3 }}><ShieldCheck /> Verify and letter</Link></Button>
             <Button variant="outline" disabled={rerun.isPending || building} onClick={() => rerun.mutate()}><RefreshCw /> Rebuild profile</Button>
             {!b.is_active ? <Button disabled={activate.isPending || building} onClick={() => activate.mutate()}>Watch for this brand</Button> : null}
+            <AlertDialog>
+              <AlertDialogTrigger asChild><Button variant="ghost" size="icon" aria-label="Delete this brand"><Trash2 /></Button></AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {b.display_name}?</AlertDialogTitle>
+                  <AlertDialogDescription>Removes the profile and every threat, case and notice for this brand. This cannot be undone.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep it</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={() => remove.mutate()}>Delete brand</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         }
       />
@@ -163,7 +186,7 @@ function BrandPage() {
                 <CardHeader><CardTitle className="text-base">Authorisation letter</CardTitle><CardDescription>Its fingerprint is printed on every notice.</CardDescription></CardHeader>
                 <CardContent className="text-sm">
                   {b.authorisation_letter_sha256 ? <div className="grid gap-1"><div><Mono>{b.authorisation_letter_ref}</Mono></div><div><Hash value={b.authorisation_letter_sha256} /></div></div> :
-                    <div className="flex items-center gap-3"><Badge variant="warn">none on file</Badge><Button asChild size="sm" variant="outline"><Link to="/brands/$brandId" params={{ brandId: b.id }}>Add it</Link></Button></div>}
+                    <div className="flex items-center gap-3"><Badge variant="warn">none on file</Badge><Button asChild size="sm" variant="outline"><Link to="/setup" search={{ step: 3 }}>Add it</Link></Button></div>}
                 </CardContent>
               </Card>
             </div>

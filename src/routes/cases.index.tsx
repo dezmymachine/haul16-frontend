@@ -28,7 +28,7 @@ function CasesPage() {
       />
       <ErrorNote error={q.error} />
       {q.isPending ? <Skeleton className="h-40 w-full" /> : null}
-      {q.data && !q.data.length ? <Empty>No cases yet. Run a demo clone from the Watch page.</Empty> : null}
+      {q.data && !q.data.length ? <Empty>No cases yet. Once protection is on, the scan on Home looks for look-alikes of your brand.</Empty> : null}
       {q.data?.length ? (
         <Card className="py-0">
           <Table>

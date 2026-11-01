@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import type { Confidence, NoticeStatus } from '@/api'
+import { useSession } from '@/session'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -151,8 +152,10 @@ function readApprover() {
   }
 }
 
-/** The one "acting as" identity for the whole app, shared by every page via the sidebar. */
-export function useApprover(): [string, (v: string) => void] {
+/** Who is deciding. The signed-in person when sign-in is on (the server records the session name, not what we send);
+ *  otherwise a name typed in the account menu and kept in localStorage. Returns [name, setName, locked]. */
+export function useApprover(): [string, (v: string) => void, boolean] {
+  const { session } = useSession()
   const [v, setV] = useState('')
   useEffect(() => {
     const sync = () => setV(readApprover())
@@ -160,8 +163,9 @@ export function useApprover(): [string, (v: string) => void] {
     approverListeners.add(sync)
     return () => void approverListeners.delete(sync)
   }, [])
+  const locked = !!session?.auth_enabled
   return [
-    v,
+    locked ? session!.name : v,
     (nv: string) => {
       try {
         localStorage.setItem(APPROVER_KEY, nv)
@@ -170,5 +174,6 @@ export function useApprover(): [string, (v: string) => void] {
       }
       approverListeners.forEach((fn) => fn())
     },
+    locked,
   ]
 }

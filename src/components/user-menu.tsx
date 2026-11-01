@@ -1,8 +1,12 @@
-import { Link } from '@tanstack/react-router'
-import { Check, ChevronDown, Plus } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { Check, ChevronDown, LogOut, Plus } from 'lucide-react'
+import { api } from '@/api'
+import { useSession } from '@/session'
 import { useBrands } from '@/brand'
 import { useApprover } from '@/ui'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -12,7 +16,15 @@ const initialsOf = (s: string) => s.trim().split(/\s+/).map((w) => w[0]).slice(0
 /** Top-right account: the business HAUL16 is protecting. The popover holds the approver name used on every notice decision. */
 export function UserMenu() {
   const { brands, current, select } = useBrands()
-  const [name, setName] = useApprover()
+  const [name, setName, locked] = useApprover()
+  const { session } = useSession()
+  const nav = useNavigate()
+  const qc = useQueryClient()
+  const signOut = async () => {
+    await api.logout().catch(() => null)
+    qc.clear()
+    nav({ to: '/login' })
+  }
   const business = current?.display_name ?? ''
 
   return (
@@ -53,13 +65,22 @@ export function UserMenu() {
                 {b.is_active ? <span className="text-xs text-muted-foreground">watching</span> : null}
               </button>
             ))}
-            <Link to="/brands/new" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"><Plus className="size-4" /> Add a brand</Link>
+            <Link to="/setup" search={{ new: true }} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"><Plus className="size-4" /> Add a brand</Link>
           </div>
+          {locked ? (
+            <div className="grid gap-2 rounded-md border bg-muted/50 p-3">
+              <div className="text-xs text-muted-foreground">Signed in as</div>
+              <div className="text-sm font-medium">{session?.name} <span className="font-normal text-muted-foreground">{session?.email}</span></div>
+              <p className="text-xs text-muted-foreground">Your name is recorded on every approval you make.</p>
+              <Button variant="outline" size="sm" className="justify-start" onClick={signOut}><LogOut /> Sign out</Button>
+            </div>
+          ) : (
           <div className="grid gap-1.5">
             <Label htmlFor="acting-as">Acting as (approver)</Label>
             <Input id="acting-as" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
             <p className="text-xs text-muted-foreground">Recorded in the audit log whenever you approve, reject or file a notice.</p>
           </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>

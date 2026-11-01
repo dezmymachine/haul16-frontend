@@ -324,7 +324,14 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
   const seg = p.split('/').filter(Boolean)
   const now = iso(Date.now())
 
-  if (seg[0] === 'brands') return handleBrandRoute(db.brandState!, method, seg, body, save)
+  // Signed-in demo session (sample data has no real sign-in)
+  if (seg[0] === 'auth') return seg[1] === 'logout' ? { ok: true } : { email: 'demo@haul16.test', name: 'Demo user', auth_enabled: true }
+
+  if (seg[0] === 'brands') {
+    const forBrand = seg[1] === BRAND_ID
+    const counts = { threats: forBrand ? db.threats.length : 0, awaiting: forBrand ? db.notices.filter((n) => n.status === 'drafted').length : 0, approved: forBrand ? db.notices.filter((n) => n.status === 'approved').length : 0 }
+    return handleBrandRoute(db.brandState!, method, seg, body, save, counts)
+  }
 
   // Sample takedown data exists only for the demo brand. Any other brand starts empty, like a real new brand.
   const scoped = ((init?.headers ?? {}) as Record<string, string>)['x-brand-id']

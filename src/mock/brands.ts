@@ -1,5 +1,5 @@
 // Sample-data implementation of the /api/brands routes: a pre-profiled fictional brand and a simulated profiling run for any new brand.
-import { ApiError, type BrandSummary, type JobStatus, type ProfileAsset, type ProfileFact, type ProfilePerson, type StepState, type VerifyInstructions } from '@/api'
+import { ApiError, type BrandSummary, type JobStatus, type NextAction, type SetupState, type SweepStatus, type ProfileAsset, type ProfileFact, type ProfilePerson, type StepState, type VerifyInstructions } from '@/api'
 import { BRAND, fakeHash, hoursAgo, iso, rid } from './data'
 
 export interface BrandState {
@@ -10,7 +10,10 @@ export interface BrandState {
   assets: Record<string, ProfileAsset[]>
   jobs: Record<string, JobStatus>
   verifyChecks: Record<string, number>
+  sweeps?: Record<string, SweepStatus>
 }
+
+export interface MockCounts { threats: number; awaiting: number; approved: number }
 
 const STEPS = ['inputs', 'dns', 'rdap', 'website', 'assets', 'linkedin', 'socials', 'news', 'dossier']
 
@@ -89,7 +92,48 @@ const seedTerms = (name: string, domain?: string) => {
   return [...new Set(t.filter((x) => x.length >= 4))]
 }
 
-export function handleBrandRoute(bs: BrandState, method: string, seg: string[], body: any, save: () => void): any {
+function setupState(bs: BrandState, b: BrandSummary, counts: MockCounts): SetupState {
+  const facts = bs.facts[b.id] ?? []
+  const undecided = facts.filter((f) => f.review_status === 'pending' && (f.needs_confirmation || f.verification === 'conflicting')).length
+  const ready = b.status === 'ready', running = b.status === 'profiling'
+  const verified = b.ownership_status === 'verified', letter = !!b.authorisation_letter_sha256, active = b.is_active
+  const plural = (n: number) => (n === 1 ? '' : 's')
+  const review: NextAction = { key: 'review_facts', title: `Confirm ${undecided} detail${plural(undecided)} we found`, detail: 'Phone numbers, accounts and wallets are only used once you confirm them.', href: '/setup?step=2', count: undecided }
+  const prove: NextAction = { key: 'prove_ownership', title: "Prove it's your brand", detail: 'Required before any notice can be filed: verify your domain and add the signed authorisation letter.', href: '/setup?step=3' }
+  let next: NextAction
+  if (!ready) next = { key: 'wait_profile', title: "Reading your brand's public footprint", detail: 'This takes about a minute. You can leave this page.', href: '/setup?step=2' }
+  else if (!active) next = undecided ? review : { key: 'start_protection', title: 'Start protecting your brand', detail: 'HAUL16 will watch for look-alike sites and scan for ones that already exist.', href: '/setup?step=4' }
+  else if (counts.awaiting) next = { key: 'review_notices', title: `Approve ${counts.awaiting} takedown notice${plural(counts.awaiting)}`, detail: 'Each one needs a person to approve it before it can be filed.', href: '/approvals', count: counts.awaiting }
+  else if (counts.approved && verified && letter) next = { key: 'file_notices', title: `File ${counts.approved} approved notice${plural(counts.approved)}`, detail: 'Filing is a dry run for now: nothing is sent, and the takedown clock starts.', href: '/approvals?status=approved', count: counts.approved }
+  else if (counts.approved) next = prove
+  else if (undecided) next = review
+  else if (!(verified && letter)) next = prove
+  else next = { key: 'all_clear', title: 'All clear', detail: 'Nothing needs you right now. HAUL16 keeps watching.', href: '/home' }
+  return {
+    brand_id: b.id, step: !(ready && !undecided) ? 2 : !(verified && letter) ? 3 : 4, complete: active,
+    steps: { brand: { done: true }, profile: { done: ready, running }, review: { done: !undecided, count: undecided }, ownership: { done: verified }, letter: { done: letter }, protection: { done: active } },
+    next_action: next, sweep: bs.sweeps?.[b.id] ?? { status: 'none' }, counts,
+  }
+}
+
+/** Simulated look-alike scan. Sample data only: it does not create findings. */
+function startSweep(bs: BrandState, id: string, save: () => void) {
+  bs.sweeps ??= {}
+  const total = 324
+  bs.sweeps[id] = { status: 'running', phase: 'checking', generated: total, checked: 0, registered: 0, queued: 0, skipped_known: 0 }
+  const t = setInterval(() => {
+    const s = bs.sweeps![id]
+    s.checked = Math.min(total, (s.checked ?? 0) + 27)
+    s.registered = Math.round((s.checked / total) * 6)
+    if (s.checked >= total) {
+      Object.assign(s, { status: 'done', phase: 'done', queued: 0, updated_at: iso(Date.now()) })
+      clearInterval(t)
+      save()
+    }
+  }, 350)
+}
+
+export function handleBrandRoute(bs: BrandState, method: string, seg: string[], body: any, save: () => void, counts: MockCounts = { threats: 0, awaiting: 0, approved: 0 }): any {
   // seg: ['brands', ...]
   const id = seg[1]
   const need = () => bs.brands.find((b) => b.id === id) ?? (() => { throw new ApiError(404, 'No such brand') })()
@@ -116,6 +160,26 @@ export function handleBrandRoute(bs: BrandState, method: string, seg: string[], 
   }
   const b = need()
   const sub = seg[2]
+  if (!sub && method === 'DELETE') {
+    bs.brands = bs.brands.filter((x) => x.id !== b.id)
+    save()
+    return { deleted: b.id }
+  }
+  if (!sub && method === 'PATCH') {
+    const terms = [...new Set<string>((body.seed_terms ?? []).map((t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '')).filter((t: string) => t.length >= 4))]
+    if (!terms.length) throw new ApiError(422, 'Add at least one name of 4 or more letters or digits')
+    b.seed_terms = terms
+    save()
+    return b
+  }
+  if (sub === 'setup' && method === 'GET') return setupState(bs, b, counts)
+  if (sub === 'sweep') {
+    if (method === 'GET' || seg[3] === 'status') return bs.sweeps?.[b.id] ?? { status: 'none' }
+    if (b.status !== 'ready') throw new ApiError(409, "Build the brand's profile first")
+    if (!b.is_active) throw new ApiError(409, 'Start protection first. Detection must be watching this brand.')
+    if (bs.sweeps?.[b.id]?.status !== 'running') startSweep(bs, b.id, save)
+    return bs.sweeps![b.id]
+  }
   if (!sub && method === 'GET') return { ...b, verification: bs.verification[b.id], job: bs.jobs[b.id] ?? null }
   if (sub === 'profile') {
     if (seg[3] === 'run' && method === 'POST') {
@@ -160,8 +224,9 @@ export function handleBrandRoute(bs: BrandState, method: string, seg: string[], 
   if (sub === 'activate' && method === 'POST') {
     if (b.status !== 'ready') throw new ApiError(409, "Build the brand's profile first")
     bs.brands.forEach((x) => (x.is_active = x.id === b.id))
+    if (bs.sweeps?.[b.id]?.status !== 'running') startSweep(bs, b.id, save)
     save()
-    return { active: b.id }
+    return { active: b.id, sweep: bs.sweeps![b.id] }
   }
   throw new ApiError(404, `Not found: ${method} /${seg.join('/')}`)
 }

@@ -1,8 +1,9 @@
-import { HeadContent, Link, Outlet, Scripts, createRootRouteWithContext, useRouterState } from '@tanstack/react-router'
+import { HeadContent, Link, Outlet, Scripts, createRootRouteWithContext, useNavigate, useRouterState } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import appCss from '@/styles.css?url'
 import { useLiveConnection } from '@/live'
+import { useSession } from '@/session'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -32,7 +33,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   notFoundComponent: () => (
     <div className="grid place-items-center gap-3 p-16 text-center">
       <h1 className="text-2xl font-semibold">Page not found</h1>
-      <Button asChild><Link to="/watch">Back to Watch</Link></Button>
+      <Button asChild><Link to="/home">Back to Home</Link></Button>
     </div>
   ),
 })
@@ -51,19 +52,33 @@ function RootDocument({ children }: { children: ReactNode }) {
   )
 }
 
+const PUBLIC = ['/', '/login']
+
 function Layout() {
   const { queryClient } = Route.useRouteContext()
-  useLiveConnection(queryClient)
+  const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  // The landing page is a standalone, full-screen page with no dashboard chrome.
-  if (pathname === '/') return <Outlet />
+  const { isPending, signedOut } = useSession()
+  const isPublic = PUBLIC.includes(pathname)
+  const { session } = useSession()
+  useLiveConnection(queryClient, !isPublic && !!session)   // no live stream until someone is signed in
+  useEffect(() => {
+    if (!isPublic && signedOut) navigate({ to: '/login' })
+  }, [isPublic, signedOut, navigate])
+
+  // The providers are unconditional: during a route change the page that is leaving still renders for a moment, and it may need them.
+  // Landing and sign-in are standalone; setup is full-screen with no sidebar; everything else gets the sidebar.
+  const standalone = isPublic || pathname === '/setup'
+  const gated = !isPublic && (isPending || signedOut)
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset className="min-w-0">
-          <Outlet />
-        </SidebarInset>
+        {gated ? null : standalone ? <div className="min-w-0 flex-1"><Outlet /></div> : (
+          <>
+            <AppSidebar />
+            <SidebarInset className="min-w-0"><Outlet /></SidebarInset>
+          </>
+        )}
       </SidebarProvider>
       <Toaster position="bottom-right" />
     </TooltipProvider>

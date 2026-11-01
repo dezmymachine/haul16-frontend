@@ -53,8 +53,9 @@ function handleEvent(qc: QueryClient, ev: LiveEvent) {
   if (ev.type === 'filed') qc.invalidateQueries({ queryKey: ['case', ev.case_id] })
 }
 
-export function useLiveConnection(qc: QueryClient) {
+export function useLiveConnection(qc: QueryClient, enabled = true) {
   useEffect(() => {
+    if (!enabled) return
     let es: EventSource | null = null
     let retry: ReturnType<typeof setTimeout> | undefined
     let stopMock: (() => void) | undefined
@@ -87,7 +88,7 @@ export function useLiveConnection(qc: QueryClient) {
       es?.close()
       stopMock?.()
     }
-  }, [qc])
+  }, [qc, enabled])
 }
 
 const never = () => new Promise<never>(() => {})

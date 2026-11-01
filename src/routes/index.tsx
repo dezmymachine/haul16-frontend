@@ -1,5 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { ArrowRight, Building2, ClipboardCheck, FileBarChart, FolderOpen, Radar, ShieldAlert } from 'lucide-react'
+import { useSession } from '@/session'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -9,6 +10,7 @@ export const Route = createFileRoute('/')({
 })
 
 function HomePage() {
+  const { session } = useSession()
   return (
     <main className="fixed inset-0 overflow-hidden bg-background">
       <div className="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-4 p-4 md:p-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-1 lg:gap-6">
@@ -28,8 +30,8 @@ function HomePage() {
             </p>
             <div>
               <Button asChild size="lg" className="h-12 px-6 text-base">
-                <Link to="/watch">
-                  Open dashboard <ArrowRight />
+                <Link to={session ? '/home' : '/login'}>
+                  {session ? 'Open dashboard' : 'Sign in'} <ArrowRight />
                 </Link>
               </Button>
             </div>

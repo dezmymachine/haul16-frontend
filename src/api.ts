@@ -290,6 +290,42 @@ export interface Profile {
   needs_review: string[]
 }
 
+export interface Session {
+  email: string
+  name: string
+  auth_enabled: boolean
+}
+
+export interface NextAction {
+  key: 'wait_profile' | 'review_facts' | 'start_protection' | 'review_notices' | 'file_notices' | 'prove_ownership' | 'all_clear'
+  title: string
+  detail: string
+  href: string
+  count?: number
+}
+
+export interface SweepStatus {
+  status: 'none' | 'running' | 'done' | 'failed'
+  phase?: string
+  generated?: number
+  checked?: number
+  registered?: number
+  queued?: number
+  skipped_known?: number
+  updated_at?: string
+  error?: string | null
+}
+
+export interface SetupState {
+  brand_id: string
+  step: 2 | 3 | 4
+  complete: boolean
+  steps: Record<string, { done: boolean; running?: boolean; count?: number }>
+  next_action: NextAction
+  sweep: SweepStatus
+  counts: { threats: number; awaiting: number; approved: number }
+}
+
 export interface BrandInput {
   display_name: string
   website?: string
@@ -316,6 +352,9 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { 'content-type': 'application/json', ...(brandId ? { 'x-brand-id': brandId } : {}), ...(init?.headers ?? {}) },
   })
+  if (res.status === 401 && !path.startsWith('/api/auth/') && typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.assign('/login')   // signed out or the session expired
+  }
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`
     try {
@@ -357,6 +396,14 @@ export const api = {
   demoReset: () => post<{ ok: boolean }>('/api/demo/reset'),
   report: (month: string) => req<Report>(`/api/report?month=${month}`),
   audit: () => req<AuditRow[]>('/api/audit'),
+  me: () => req<Session>('/api/auth/me'),
+  login: (email: string, password: string) => post<Session>('/api/auth/login', { email, password }),
+  logout: () => post<{ ok: boolean }>('/api/auth/logout'),
+  setup: (id: string) => req<SetupState>(`/api/brands/${id}/setup`),
+  sweep: (id: string) => post<SweepStatus>(`/api/brands/${id}/sweep`),
+  sweepStatus: (id: string) => req<SweepStatus>(`/api/brands/${id}/sweep/status`),
+  brandDelete: (id: string) => req<{ deleted: string }>(`/api/brands/${id}`, { method: 'DELETE' }),
+  brandPatch: (id: string, body: { seed_terms: string[] }) => req<BrandSummary>(`/api/brands/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   brands: () => req<BrandSummary[]>('/api/brands'),
   brandCreate: (body: BrandInput) => post<BrandSummary & { verification: VerifyInstructions }>('/api/brands', body),
   brandGet: (id: string) => req<BrandSummary & { verification: VerifyInstructions; job: JobStatus | null }>(`/api/brands/${id}`),
@@ -367,7 +414,7 @@ export const api = {
   factReview: (brandId: string, factId: string, action: 'confirm' | 'reject') => post<{ ok: boolean }>(`/api/brands/${brandId}/facts/${factId}/${action}`),
   letterUpload: (id: string, filename: string, content_base64: string) =>
     post<{ ref: string; sha256: string; bytes: number }>(`/api/brands/${id}/letter`, { filename, content_base64 }),
-  brandActivate: (id: string) => post<{ active: string }>(`/api/brands/${id}/activate`),
+  brandActivate: (id: string) => post<{ active: string; sweep: SweepStatus }>(`/api/brands/${id}/activate`),
 }
 
 export function evidenceUrl(ref: string | null | undefined): string | null {

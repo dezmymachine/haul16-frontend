@@ -12,10 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as BrandRouteImport } from './routes/brand'
+import { Route as HomeRouteImport } from './routes/home'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ReportRouteImport } from './routes/report'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as WatchRouteImport } from './routes/watch'
-import { Route as BrandsBrandIdRouteImport } from './routes/brands.$brandId'
-import { Route as BrandsNewRouteImport } from './routes/brands.new'
 import { Route as CasesIndexRouteImport } from './routes/cases.index'
 import { Route as CasesCaseIdRouteImport } from './routes/cases.$caseId'
 import { Route as ThreatsIndexRouteImport } from './routes/threats.index'
@@ -36,24 +37,29 @@ const BrandRoute = BrandRouteImport.update({
   path: '/brand',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WatchRoute = WatchRouteImport.update({
   id: '/watch',
   path: '/watch',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BrandsBrandIdRoute = BrandsBrandIdRouteImport.update({
-  id: '/brands/$brandId',
-  path: '/brands/$brandId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BrandsNewRoute = BrandsNewRouteImport.update({
-  id: '/brands/new',
-  path: '/brands/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CasesIndexRoute = CasesIndexRouteImport.update({
@@ -81,10 +87,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/approvals': typeof ApprovalsRoute
   '/brand': typeof BrandRoute
+  '/home': typeof HomeRoute
+  '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/setup': typeof SetupRoute
   '/watch': typeof WatchRoute
-  '/brands/$brandId': typeof BrandsBrandIdRoute
-  '/brands/new': typeof BrandsNewRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases/': typeof CasesIndexRoute
@@ -94,10 +101,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/approvals': typeof ApprovalsRoute
   '/brand': typeof BrandRoute
+  '/home': typeof HomeRoute
+  '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/setup': typeof SetupRoute
   '/watch': typeof WatchRoute
-  '/brands/$brandId': typeof BrandsBrandIdRoute
-  '/brands/new': typeof BrandsNewRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases': typeof CasesIndexRoute
@@ -108,10 +116,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/approvals': typeof ApprovalsRoute
   '/brand': typeof BrandRoute
+  '/home': typeof HomeRoute
+  '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/setup': typeof SetupRoute
   '/watch': typeof WatchRoute
-  '/brands/$brandId': typeof BrandsBrandIdRoute
-  '/brands/new': typeof BrandsNewRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases/': typeof CasesIndexRoute
@@ -123,10 +132,11 @@ export interface FileRouteTypes {
     | '/'
     | '/approvals'
     | '/brand'
+    | '/home'
+    | '/login'
     | '/report'
+    | '/setup'
     | '/watch'
-    | '/brands/$brandId'
-    | '/brands/new'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases/'
@@ -136,10 +146,11 @@ export interface FileRouteTypes {
     | '/'
     | '/approvals'
     | '/brand'
+    | '/home'
+    | '/login'
     | '/report'
+    | '/setup'
     | '/watch'
-    | '/brands/$brandId'
-    | '/brands/new'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases'
@@ -149,10 +160,11 @@ export interface FileRouteTypes {
     | '/'
     | '/approvals'
     | '/brand'
+    | '/home'
+    | '/login'
     | '/report'
+    | '/setup'
     | '/watch'
-    | '/brands/$brandId'
-    | '/brands/new'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases/'
@@ -163,10 +175,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApprovalsRoute: typeof ApprovalsRoute
   BrandRoute: typeof BrandRoute
+  HomeRoute: typeof HomeRoute
+  LoginRoute: typeof LoginRoute
   ReportRoute: typeof ReportRoute
+  SetupRoute: typeof SetupRoute
   WatchRoute: typeof WatchRoute
-  BrandsBrandIdRoute: typeof BrandsBrandIdRoute
-  BrandsNewRoute: typeof BrandsNewRoute
   CasesCaseIdRoute: typeof CasesCaseIdRoute
   ThreatsThreatIdRoute: typeof ThreatsThreatIdRoute
   CasesIndexRoute: typeof CasesIndexRoute
@@ -196,6 +209,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BrandRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/report': {
       id: '/report'
       path: '/report'
@@ -203,25 +230,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/watch': {
       id: '/watch'
       path: '/watch'
       fullPath: '/watch'
       preLoaderRoute: typeof WatchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/brands/$brandId': {
-      id: '/brands/$brandId'
-      path: '/brands/$brandId'
-      fullPath: '/brands/$brandId'
-      preLoaderRoute: typeof BrandsBrandIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/brands/new': {
-      id: '/brands/new'
-      path: '/brands/new'
-      fullPath: '/brands/new'
-      preLoaderRoute: typeof BrandsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cases/': {
@@ -259,10 +279,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApprovalsRoute: ApprovalsRoute,
   BrandRoute: BrandRoute,
+  HomeRoute: HomeRoute,
+  LoginRoute: LoginRoute,
   ReportRoute: ReportRoute,
+  SetupRoute: SetupRoute,
   WatchRoute: WatchRoute,
-  BrandsBrandIdRoute: BrandsBrandIdRoute,
-  BrandsNewRoute: BrandsNewRoute,
   CasesCaseIdRoute: CasesCaseIdRoute,
   ThreatsThreatIdRoute: ThreatsThreatIdRoute,
   CasesIndexRoute: CasesIndexRoute,

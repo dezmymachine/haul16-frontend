@@ -71,8 +71,8 @@ The UI is organised around one pipeline. Every page names its step and links to 
 Detect (Watch) -> Triage (Threats) -> Case (Cases) -> Approve (Approvals) -> File (dry run) -> Track clock -> Report
 ```
 
-0. **Home** `/`: a standalone, non-scrolling landing page (no sidebar) with one "Open dashboard" link to `/watch`. The page chrome is skipped for `/` in `routes/__root.tsx`.
-1. **Watch** `/watch`: live certificate stream, threat mix, live pipeline feed, demo controls, manual URL submission.
+0. **Landing** `/`: a standalone, non-scrolling page (no sidebar) with one button to sign in or open the dashboard. Chrome is skipped for `/` and `/login` in `routes/__root.tsx`.
+1. **Home** `/home` (was Watch): the next step to take, threat mix, look-alike scan, live pipeline feed, manual URL submission. See "The live branch: guided first run" below.
 2. **Threats** `/threats`: every hostname that matched the brand, with verdict (high / medium / low / unknown).
    Nothing is ever "safe": `unknown` means the page could not be seen yet.
 3. **Cases** `/cases`: a case opens automatically when a capture scores **medium or high**. Sites that share
@@ -84,8 +84,8 @@ Detect (Watch) -> Triage (Threats) -> Case (Cases) -> Approve (Approvals) -> Fil
    logged manually and are labelled simulated.
 6. **Report** `/report`: monthly report, time-to-removal by channel, export JSON, print.
 7. **Brand** `/brand`: the brand's **identity dossier** (live branch): every fact with its source, confidence and verification level,
-   a review queue for numbers/wallets/handles, logos with fingerprints, leadership, press. `/brands/new` adds a brand and
-   `/brands/$brandId` is the setup page (profiling progress, DNS ownership check, authorisation letter).
+   a review queue for numbers/wallets/handles, logos with fingerprints, leadership, press. Adding a brand and the DNS
+   ownership check and authorisation letter live in the guided setup at `/setup`.
 
 Human approval is enforced **server-side** (the backend returns 409 if you try to file an unapproved
 notice). The UI mirrors it but is not the safeguard.
@@ -114,7 +114,10 @@ src/
   routes/                file-based routes (page components live IN the route files)
     __root.tsx           <html> shell, fonts, SidebarProvider layout, Toaster, live SSE connection
     index.tsx            Home / landing page (/), full-screen, no scroll
-    watch.tsx            Watch  (/watch)
+    home.tsx             Home (/home), the dashboard's first page
+    watch.tsx            redirects /watch to /home
+    login.tsx            sign-in
+    setup.tsx            guided first-run setup (4 steps, no sidebar)
     threats.index.tsx    Threats list (/threats?confidence=)
     threats.$threatId.tsx  Threat detail
     cases.index.tsx      Cases list
@@ -319,32 +322,36 @@ How it works (`src/mock/`):
 Keep the mock in step with the backend: a new route or field in `src/api.ts` needs the same in `src/mock/server.ts` and `data.ts`.
 The report ignores the selected month in sample mode because the seed is timestamped relative to "now".
 
-## The `live` branch: brand identity (this branch)
+## The `live` branch: guided first run (this branch)
 
-`live` adds multi-brand support and the **Brand Profiler** UI on top of `main`. The backend (haul16-backend, branch `live`) builds a sourced,
-versioned dossier for a brand from its public footprint; this app lets a person add a brand, watch it being profiled, prove they control it,
-review what was found, and choose which brand detection watches for.
+`live` turns the dashboard into a flow a real person can follow from sign-in to a filed notice. The backend (haul16-backend, branch `live`) builds a sourced identity
+dossier for a brand, runs a look-alike domain sweep and enforces sign-in; this app walks the user through it and then shows one next action on Home.
+
+```
+/login -> /setup  1 Your brand -> 2 What we found -> 3 Prove it's yours -> 4 Start protection -> /home
+Home always shows ONE next step:  confirm details -> start protection -> approve notices -> file (dry run) -> prove ownership -> all clear
+```
 
 | Route | What it does |
 |---|---|
-| `/brands/new` | Form: name, website, LinkedIn page, other official accounts and domains. Creates the brand and queues the profile |
-| `/brands/$brandId` | Setup: live profiling steps (polled every 1.5s), the DNS TXT record to prove ownership with a "Check now" button, authorisation letter upload (sent as base64, the SHA-256 is stored) |
-| `/brand` | The dossier for the selected brand, tabs in the URL (`?tab=`): Overview, Identity, Domains, Online presence, Leadership, Contact and payment, Logos, Press, Sources. "Rebuild profile", "Watch for this brand" (activates detection), "Verify and letter" |
+| `/` | Public landing page. Button is "Sign in", or "Open dashboard" when already signed in |
+| `/login` | Email and password for the owner account. After sign-in: `/setup` if there is no brand or protection has not started, otherwise `/home` |
+| `/setup` | Full-screen guided setup (no sidebar), step in the URL (`?step=1..4`). State is read from the server (`GET /api/brands/{id}/setup`), so a refresh resumes where you were. `?new=true` adds another brand. Finished brands open Home unless a step is asked for |
+| `/home` | Next-step card (from the same server state the wizard uses), stat tiles, threat mix, **Scan for look-alikes** (progress polled while it runs), **Report a suspicious link**, live activity, certificate stream. `/watch` redirects here. The demo cloning panel only shows for a fictional brand |
+| `/brand` | The dossier for the selected brand (tabs in `?tab=`): every fact with source, confidence and verification level, confirm/reject review, logos, leadership, press, sources; rebuild, watch for this brand, delete |
+| `/threats`, `/cases`, `/approvals`, `/report` | As before, scoped to the selected brand |
 
 How it works:
-- **Selected brand** (`src/brand.ts`): `useBrands()` returns the list plus `current`, stored in `localStorage` (`haul16.brand`) and sent on **every** API call as the
-  `X-Brand-Id` header (added in `req()` in `src/api.ts`), so every page (threats, cases, approvals, report) is about the selected brand. Switching invalidates
-  all queries. A stored id that no longer exists is dropped automatically. The switcher and "Add a brand" are in the top-right account menu.
-- **Facts** (`components/fact-row.tsx`): each row shows the value, a verification badge (`verified`, `official site only`, `one outside source`, `conflicting`),
-  collector, source link and confidence. Numbers, wallets, accounts and handles show **Confirm / Reject** and are used for detection only after a person confirms.
-- **Profiling progress** (`components/profile-steps.tsx`): one row per collector; steps without an API key show as *skipped* with the reason, not as failures.
-  The dossier page polls while the job is `queued` or `running`.
-- **Sample data** (`src/mock/brands.ts`): a pre-profiled fictional brand (with a conflicting registration number, pending phone numbers, press warnings, logos) and a
-  simulated profiling run for any new brand (the second ownership check succeeds, so the demo shows both states). Other brands have empty takedown data, like a real
-  new brand. Everything is labelled sample data.
+- **Sign-in** (`src/session.ts`, `routes/login.tsx`): `useSession()` calls `GET /api/auth/me`. The root layout (`routes/__root.tsx`) bounces signed-out users from every page except `/` and `/login`, and `req()` in `src/api.ts` redirects on a 401. The live SSE stream only opens once someone is signed in. The account menu shows who is signed in and **Sign out**; when sign-in is on, the approver recorded on a notice is the signed-in person (`useApprover()` returns it locked), and the server ignores any name in the request body.
+- **Layout:** the sidebar context (`SidebarProvider`) is always mounted; setup simply omits the sidebar. Do not make it conditional per path: during a route change the page that is leaving still renders for a moment and would crash without it.
+- **Selected brand** (`src/brand.ts`): stored in `localStorage` (`haul16.brand`) and sent on every API call as `X-Brand-Id`; switching invalidates all queries; a stale stored id is dropped.
+- **Facts** (`components/fact-row.tsx`): verification badge (`verified`, `official site only`, `one outside source`, `conflicting`), source link, confidence, and Confirm/Reject for numbers, wallets, accounts and handles, which are used for detection only after a person confirms them.
+- **Watch terms** (setup step 4): editable chips (`PATCH /api/brands/{id}`), applied to live detection immediately. Common words match other, innocent businesses, so the UI tells the user to keep only distinctive names.
+- **Filing is locked** until the domain is verified and the letter is uploaded (the server returns a plain 409 that the UI shows).
 
-Run against the live backend: start `haul16-backend` (see its README), then `npm run dev`. The Vite proxy sends `/api` to `:8000`, so the app uses the real API and the
-"Sample data" badge disappears. Keep the mock in step with the API: a new brand route or field needs the same in `src/api.ts` and `src/mock/brands.ts`.
+**Sample data** (`src/mock/`, used when no backend answers, for example the Vercel deploy): a signed-in demo user, a pre-profiled fictional brand with takedown data, a simulated profiling run, simulated ownership check (the second check succeeds), a simulated sweep (progress only, it does not create findings), and the same setup state logic. Other brands start empty. The Home page, setup flow and brand switcher behave the same. Keep it in step with the API: a new route or field needs the same in `src/api.ts`, `src/mock/server.ts` and `src/mock/brands.ts`.
+
+Run against the live backend: start `haul16-backend` (its README has the env vars, including `AUTH_OWNER_PASSWORD`), then `npm run dev`; the Vite proxy sends `/api` to `:8000`, so the app uses the real API and the "Sample data" badge disappears.
 
 ## 10. Testing and verification
 
