@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
-import { ChevronDown } from 'lucide-react'
-import { api } from '@/api'
+import { Link } from '@tanstack/react-router'
+import { Check, ChevronDown, Plus } from 'lucide-react'
+import { useBrands } from '@/brand'
 import { useApprover } from '@/ui'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
@@ -11,9 +11,9 @@ const initialsOf = (s: string) => s.trim().split(/\s+/).map((w) => w[0]).slice(0
 
 /** Top-right account: the business HAUL16 is protecting. The popover holds the approver name used on every notice decision. */
 export function UserMenu() {
-  const brand = useQuery({ queryKey: ['brand'], queryFn: api.brand })
+  const { brands, current, select } = useBrands()
   const [name, setName] = useApprover()
-  const business = brand.data?.display_name ?? ''
+  const business = current?.display_name ?? ''
 
   return (
     <Popover>
@@ -37,8 +37,23 @@ export function UserMenu() {
             </Avatar>
             <div className="grid leading-tight">
               <span className="font-semibold">{business}</span>
-              <span className="text-xs text-muted-foreground">Brand under protection</span>
+              <span className="text-xs text-muted-foreground">{current?.is_active ? 'Detection is watching this brand' : 'Brand in view'}</span>
             </div>
+          </div>
+          <div className="grid gap-1">
+            <div className="text-xs font-medium text-muted-foreground">Brand</div>
+            {brands.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => select(b.id)}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+              >
+                <Check className={b.id === current?.id ? 'size-4 text-primary' : 'size-4 opacity-0'} />
+                <span className="flex-1 truncate">{b.display_name}</span>
+                {b.is_active ? <span className="text-xs text-muted-foreground">watching</span> : null}
+              </button>
+            ))}
+            <Link to="/brands/new" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"><Plus className="size-4" /> Add a brand</Link>
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="acting-as">Acting as (approver)</Label>

@@ -6,6 +6,7 @@ import type {
 export interface MockCase { id: string; opened_at: string; status: string; title: string }
 export interface MockIdentifier { threat_id: string; kind: string; value: string }
 export interface DB {
+  brandState?: import('./brands').BrandState
   threats: Threat[]
   cases: MockCase[]
   identifiers: MockIdentifier[]

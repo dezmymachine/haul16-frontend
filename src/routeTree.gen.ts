@@ -14,6 +14,8 @@ import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as BrandRouteImport } from './routes/brand'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as WatchRouteImport } from './routes/watch'
+import { Route as BrandsBrandIdRouteImport } from './routes/brands.$brandId'
+import { Route as BrandsNewRouteImport } from './routes/brands.new'
 import { Route as CasesIndexRouteImport } from './routes/cases.index'
 import { Route as CasesCaseIdRouteImport } from './routes/cases.$caseId'
 import { Route as ThreatsIndexRouteImport } from './routes/threats.index'
@@ -44,6 +46,16 @@ const WatchRoute = WatchRouteImport.update({
   path: '/watch',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BrandsBrandIdRoute = BrandsBrandIdRouteImport.update({
+  id: '/brands/$brandId',
+  path: '/brands/$brandId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrandsNewRoute = BrandsNewRouteImport.update({
+  id: '/brands/new',
+  path: '/brands/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CasesIndexRoute = CasesIndexRouteImport.update({
   id: '/cases/',
   path: '/cases/',
@@ -71,6 +83,8 @@ export interface FileRoutesByFullPath {
   '/brand': typeof BrandRoute
   '/report': typeof ReportRoute
   '/watch': typeof WatchRoute
+  '/brands/$brandId': typeof BrandsBrandIdRoute
+  '/brands/new': typeof BrandsNewRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases/': typeof CasesIndexRoute
@@ -82,6 +96,8 @@ export interface FileRoutesByTo {
   '/brand': typeof BrandRoute
   '/report': typeof ReportRoute
   '/watch': typeof WatchRoute
+  '/brands/$brandId': typeof BrandsBrandIdRoute
+  '/brands/new': typeof BrandsNewRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases': typeof CasesIndexRoute
@@ -94,6 +110,8 @@ export interface FileRoutesById {
   '/brand': typeof BrandRoute
   '/report': typeof ReportRoute
   '/watch': typeof WatchRoute
+  '/brands/$brandId': typeof BrandsBrandIdRoute
+  '/brands/new': typeof BrandsNewRoute
   '/cases/$caseId': typeof CasesCaseIdRoute
   '/threats/$threatId': typeof ThreatsThreatIdRoute
   '/cases/': typeof CasesIndexRoute
@@ -107,6 +125,8 @@ export interface FileRouteTypes {
     | '/brand'
     | '/report'
     | '/watch'
+    | '/brands/$brandId'
+    | '/brands/new'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases/'
@@ -118,6 +138,8 @@ export interface FileRouteTypes {
     | '/brand'
     | '/report'
     | '/watch'
+    | '/brands/$brandId'
+    | '/brands/new'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases'
@@ -129,6 +151,8 @@ export interface FileRouteTypes {
     | '/brand'
     | '/report'
     | '/watch'
+    | '/brands/$brandId'
+    | '/brands/new'
     | '/cases/$caseId'
     | '/threats/$threatId'
     | '/cases/'
@@ -141,6 +165,8 @@ export interface RootRouteChildren {
   BrandRoute: typeof BrandRoute
   ReportRoute: typeof ReportRoute
   WatchRoute: typeof WatchRoute
+  BrandsBrandIdRoute: typeof BrandsBrandIdRoute
+  BrandsNewRoute: typeof BrandsNewRoute
   CasesCaseIdRoute: typeof CasesCaseIdRoute
   ThreatsThreatIdRoute: typeof ThreatsThreatIdRoute
   CasesIndexRoute: typeof CasesIndexRoute
@@ -184,6 +210,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WatchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/brands/$brandId': {
+      id: '/brands/$brandId'
+      path: '/brands/$brandId'
+      fullPath: '/brands/$brandId'
+      preLoaderRoute: typeof BrandsBrandIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/brands/new': {
+      id: '/brands/new'
+      path: '/brands/new'
+      fullPath: '/brands/new'
+      preLoaderRoute: typeof BrandsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cases/': {
       id: '/cases/'
       path: '/cases'
@@ -221,6 +261,8 @@ const rootRouteChildren: RootRouteChildren = {
   BrandRoute: BrandRoute,
   ReportRoute: ReportRoute,
   WatchRoute: WatchRoute,
+  BrandsBrandIdRoute: BrandsBrandIdRoute,
+  BrandsNewRoute: BrandsNewRoute,
   CasesCaseIdRoute: CasesCaseIdRoute,
   ThreatsThreatIdRoute: ThreatsThreatIdRoute,
   CasesIndexRoute: CasesIndexRoute,

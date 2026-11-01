@@ -3,22 +3,27 @@
 // refresh does not lose a demo in progress), and emits the same live events as the real /api/events stream.
 import { ApiError, type CaseDetail, type CaseSummary, type Notice, type NoticeStatus, type Report, type Stats, type Threat } from '@/api'
 import type { LiveEvent } from '@/live'
+import { handleBrandRoute, seedBrandState } from './brands'
 import {
   BRAND, BRAND_ID, RULES_VERSION, draftNotices, hoursAgo, iso, makeSeed, mkCapture, mkEnrichment, mkNotice, mkVerdict, rid,
   type DB,
 } from './data'
 
-const STORE_KEY = 'haul16.demo.v1'
+const STORE_KEY = 'haul16.demo.v2'
 const LIVE_STATUSES: NoticeStatus[] = ['drafted', 'approved', 'filed_dry_run', 'rejected']
 
 function load(): DB {
   try {
     const raw = localStorage.getItem(STORE_KEY)
-    if (raw) return JSON.parse(raw) as DB
+    if (raw) {
+      const parsed = JSON.parse(raw) as DB
+      parsed.brandState ??= seedBrandState()
+      return parsed
+    }
   } catch {
     /* storage blocked or corrupt: start from the seed */
   }
-  return makeSeed()
+  return { ...makeSeed(), brandState: seedBrandState() }
 }
 
 let db: DB = load()
@@ -319,6 +324,19 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
   const seg = p.split('/').filter(Boolean)
   const now = iso(Date.now())
 
+  if (seg[0] === 'brands') return handleBrandRoute(db.brandState!, method, seg, body, save)
+
+  // Sample takedown data exists only for the demo brand. Any other brand starts empty, like a real new brand.
+  const scoped = ((init?.headers ?? {}) as Record<string, string>)['x-brand-id']
+  if (scoped && scoped !== BRAND_ID) {
+    if (method === 'GET') {
+      if (p === '/stats') return { ...stats(), counts: { threats: 0, by_confidence: {}, open_cases: 0, notices_drafted: 0, notices_awaiting_approval: 0, notices_filed: 0 }, queue: 0 }
+      if (['/threats', '/cases', '/notices', '/audit'].includes(p)) return []
+      if (p === '/report') return { ...report(url.searchParams.get('month') ?? now.slice(0, 7)), threats_detected: 0, threats_by_confidence: {}, cases_opened: 0, notices: { drafted: 0, approved: 0, filed_dry_run: 0, rejected: 0 }, channels: [], cases: [] }
+    }
+    if (method === 'POST' && (p === '/inject' || p === '/demo/clone')) throw new ApiError(409, 'Sample data only runs for the demo brand. Switch to it from the account menu.')
+  }
+
   if (method === 'GET') {
     if (p === '/health') return { ok: true, dry_run: true, ct_enabled: true, demo: true }
     if (p === '/brand') return BRAND
@@ -409,7 +427,7 @@ export async function handleMock(path: string, init?: RequestInit): Promise<any>
       return { threat_id: queueThreat(fx.host, `http://127.0.0.1:8000/demo-sites/${body.variant}/`, 'demo_fixture', String(body.variant)).id, duplicate: false, host: fx.host }
     }
     if (p === '/demo/reset') {
-      db = makeSeed()
+      db = { ...makeSeed(), brandState: seedBrandState() }
       save()
       return { ok: true }
     }

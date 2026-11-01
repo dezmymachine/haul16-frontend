@@ -83,8 +83,9 @@ Detect (Watch) -> Triage (Threats) -> Case (Cases) -> Approve (Approvals) -> Fil
 5. **File (dry run)** starts the **takedown clock** on the case. Clock events (first response, removed) are
    logged manually and are labelled simulated.
 6. **Report** `/report`: monthly report, time-to-removal by channel, export JSON, print.
-7. **Brand** `/brand`: read-only official asset register (names, domains, numbers, wallets, favicon hashes,
-   authorisation letter hash). Edit `brand.yaml` in the **backend** repo to change it.
+7. **Brand** `/brand`: the brand's **identity dossier** (live branch): every fact with its source, confidence and verification level,
+   a review queue for numbers/wallets/handles, logos with fingerprints, leadership, press. `/brands/new` adds a brand and
+   `/brands/$brandId` is the setup page (profiling progress, DNS ownership check, authorisation letter).
 
 Human approval is enforced **server-side** (the backend returns 409 if you try to file an unapproved
 notice). The UI mirrors it but is not the safeguard.
@@ -317,6 +318,33 @@ How it works (`src/mock/`):
 
 Keep the mock in step with the backend: a new route or field in `src/api.ts` needs the same in `src/mock/server.ts` and `data.ts`.
 The report ignores the selected month in sample mode because the seed is timestamped relative to "now".
+
+## The `live` branch: brand identity (this branch)
+
+`live` adds multi-brand support and the **Brand Profiler** UI on top of `main`. The backend (haul16-backend, branch `live`) builds a sourced,
+versioned dossier for a brand from its public footprint; this app lets a person add a brand, watch it being profiled, prove they control it,
+review what was found, and choose which brand detection watches for.
+
+| Route | What it does |
+|---|---|
+| `/brands/new` | Form: name, website, LinkedIn page, other official accounts and domains. Creates the brand and queues the profile |
+| `/brands/$brandId` | Setup: live profiling steps (polled every 1.5s), the DNS TXT record to prove ownership with a "Check now" button, authorisation letter upload (sent as base64, the SHA-256 is stored) |
+| `/brand` | The dossier for the selected brand, tabs in the URL (`?tab=`): Overview, Identity, Domains, Online presence, Leadership, Contact and payment, Logos, Press, Sources. "Rebuild profile", "Watch for this brand" (activates detection), "Verify and letter" |
+
+How it works:
+- **Selected brand** (`src/brand.ts`): `useBrands()` returns the list plus `current`, stored in `localStorage` (`haul16.brand`) and sent on **every** API call as the
+  `X-Brand-Id` header (added in `req()` in `src/api.ts`), so every page (threats, cases, approvals, report) is about the selected brand. Switching invalidates
+  all queries. A stored id that no longer exists is dropped automatically. The switcher and "Add a brand" are in the top-right account menu.
+- **Facts** (`components/fact-row.tsx`): each row shows the value, a verification badge (`verified`, `official site only`, `one outside source`, `conflicting`),
+  collector, source link and confidence. Numbers, wallets, accounts and handles show **Confirm / Reject** and are used for detection only after a person confirms.
+- **Profiling progress** (`components/profile-steps.tsx`): one row per collector; steps without an API key show as *skipped* with the reason, not as failures.
+  The dossier page polls while the job is `queued` or `running`.
+- **Sample data** (`src/mock/brands.ts`): a pre-profiled fictional brand (with a conflicting registration number, pending phone numbers, press warnings, logos) and a
+  simulated profiling run for any new brand (the second ownership check succeeds, so the demo shows both states). Other brands have empty takedown data, like a real
+  new brand. Everything is labelled sample data.
+
+Run against the live backend: start `haul16-backend` (see its README), then `npm run dev`. The Vite proxy sends `/api` to `:8000`, so the app uses the real API and the
+"Sample data" badge disappears. Keep the mock in step with the API: a new brand route or field needs the same in `src/api.ts` and `src/mock/brands.ts`.
 
 ## 10. Testing and verification
 

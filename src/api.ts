@@ -2,6 +2,7 @@
 // When no backend is reachable the client serves built-in sample data (see src/demo.ts and src/mock/).
 import { demoEnabled } from './demo'
 import { demoScreenshot } from './mock/screens'
+import { getSelectedBrandId } from './brand'
 
 export type Confidence = 'high' | 'medium' | 'low' | 'unknown'
 
@@ -192,6 +193,111 @@ export interface BrandRegister {
   authorisation_letter: { ref: string; sha256: string }
 }
 
+// ---- brands and the identity dossier ----
+
+export type Verification = 'verified' | 'corroborated' | 'single_source' | 'conflicting'
+export type ReviewStatus = 'pending' | 'confirmed' | 'rejected'
+
+export interface BrandSummary {
+  id: string
+  display_name: string
+  website: string | null
+  linkedin_url: string | null
+  status: 'draft' | 'profiling' | 'ready'
+  ownership_status: 'unverified' | 'verified'
+  verified_at: string | null
+  fictional: boolean
+  authorisation_letter_ref: string | null
+  authorisation_letter_sha256: string | null
+  seed_terms: string[]
+  active_version: number | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  fact_counts?: Record<string, number>
+}
+
+export interface VerifyInstructions {
+  domain: string | null
+  record_name: string | null
+  record_type: 'TXT'
+  record_value: string
+}
+
+export interface StepState {
+  status: 'pending' | 'running' | 'ok' | 'skipped' | 'error'
+  reason?: string
+  error?: string
+  [k: string]: unknown
+}
+
+export interface JobStatus {
+  id?: number
+  status: 'none' | 'queued' | 'running' | 'done' | 'failed'
+  attempts?: number
+  error?: string | null
+  steps: Record<string, StepState>
+  version?: number | null
+}
+
+export interface ProfileFact {
+  id: string
+  kind: string
+  value: string
+  label: string | null
+  data: Record<string, any>
+  source_url: string | null
+  collector: string
+  confidence: number
+  verification: Verification
+  review_status: ReviewStatus
+  needs_confirmation: boolean
+  fetched_at: string
+}
+
+export interface ProfilePerson {
+  id: string
+  name: string
+  title: string | null
+  profile_url: string | null
+  photo_url: string | null
+  bio: string | null
+  source_url: string | null
+  collector: string
+  verification: Verification
+  review_status: ReviewStatus
+}
+
+export interface ProfileAsset {
+  id: string
+  kind: string
+  url: string | null
+  sha256: string | null
+  phash: string | null
+  mmh3: number | null
+  meta: Record<string, any>
+  source_url: string | null
+}
+
+export interface Profile {
+  brand: BrandSummary & { verification: VerifyInstructions }
+  job: JobStatus | null
+  groups: Record<string, ProfileFact[]>
+  people: ProfilePerson[]
+  assets: ProfileAsset[]
+  summary: { steps?: Record<string, StepState>; counts?: Record<string, number>; conflicts?: number; needs_review?: number } | null
+  conflicts: string[]
+  needs_review: string[]
+}
+
+export interface BrandInput {
+  display_name: string
+  website?: string
+  linkedin_url?: string
+  socials?: string[]
+  extra_domains?: string[]
+}
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -201,13 +307,14 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const brandId = getSelectedBrandId()
   if (await demoEnabled()) {
     const { handleMock } = await import('./mock/server')
-    return (await handleMock(path, init)) as T
+    return (await handleMock(path, { ...init, headers: { ...(brandId ? { 'x-brand-id': brandId } : {}), ...(init?.headers ?? {}) } })) as T
   }
   const res = await fetch(path, {
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    headers: { 'content-type': 'application/json', ...(brandId ? { 'x-brand-id': brandId } : {}), ...(init?.headers ?? {}) },
   })
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`
@@ -250,6 +357,17 @@ export const api = {
   demoReset: () => post<{ ok: boolean }>('/api/demo/reset'),
   report: (month: string) => req<Report>(`/api/report?month=${month}`),
   audit: () => req<AuditRow[]>('/api/audit'),
+  brands: () => req<BrandSummary[]>('/api/brands'),
+  brandCreate: (body: BrandInput) => post<BrandSummary & { verification: VerifyInstructions }>('/api/brands', body),
+  brandGet: (id: string) => req<BrandSummary & { verification: VerifyInstructions; job: JobStatus | null }>(`/api/brands/${id}`),
+  profile: (id: string) => req<Profile>(`/api/brands/${id}/profile`),
+  profileStatus: (id: string) => req<JobStatus>(`/api/brands/${id}/profile/status`),
+  profileRun: (id: string) => post<JobStatus>(`/api/brands/${id}/profile/run`),
+  brandVerify: (id: string) => post<{ verified: boolean; domain?: string; reason?: string | null }>(`/api/brands/${id}/verify`),
+  factReview: (brandId: string, factId: string, action: 'confirm' | 'reject') => post<{ ok: boolean }>(`/api/brands/${brandId}/facts/${factId}/${action}`),
+  letterUpload: (id: string, filename: string, content_base64: string) =>
+    post<{ ref: string; sha256: string; bytes: number }>(`/api/brands/${id}/letter`, { filename, content_base64 }),
+  brandActivate: (id: string) => post<{ active: string }>(`/api/brands/${id}/activate`),
 }
 
 export function evidenceUrl(ref: string | null | undefined): string | null {
